@@ -239,9 +239,21 @@ export default function Projects() {
   const bulkShareProjects = () => {
     if (selectedProjectIds.length === 0) return;
     const selected = projects.filter(p => selectedProjectIds.includes(p.id));
-    const text = `🏗️ *New Development Launch*\n\n` + 
-      selected.map((p, i) => `${i+1}. ${p.name} - ${p.location}`).join('\n') +
-      `\n\nExplore Details: ${window.location.origin}/catalog`;
+    
+    let text = `🏗️ *Premium Development Portfolio*\n`;
+    text += `Explore our latest ${selected.length} high-scale projects:\n\n`;
+    
+    selected.slice(0, 5).forEach((p, i) => {
+      text += `${i + 1}. *${p.name}*\n`;
+      text += `   📍 ${p.location}\n`;
+      text += `   📊 Status: ${p.status} | 🏘️ Units: ${p.total_plots_count || p.total_plots}\n\n`;
+    });
+
+    if (selected.length > 5) {
+      text += `...and ${selected.length - 5} more developments.\n\n`;
+    }
+    
+    text += `View Full Portfolio:\n🔗 ${window.location.origin}/catalog`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
 

@@ -268,9 +268,20 @@ export default function Properties() {
   const bulkShareOnWhatsApp = () => {
     if (selectedPropertyIds.length === 0) return;
     const selectedProps = properties.filter(p => selectedPropertyIds.includes(p.id));
-    const text = `🏠 *Property Catalog Selection*\n\n` + 
-      selectedProps.map((p, i) => `${i+1}. ${p.title} - ${formatCurrency(p.price)}`).join('\n') +
-      `\n\nView Full Catalog: ${window.location.origin}/catalog`;
+    
+    let text = `🏠 *Selection from PropBroker Catalog*\n\n`;
+    
+    selectedProps.slice(0, 8).forEach((p, i) => {
+      text += `${i + 1}. *${p.title}*\n`;
+      text += `   💰 ${formatCurrency(p.price)} | 📐 ${formatArea(p.area)}\n`;
+      text += `   📍 ${p.location}\n\n`;
+    });
+
+    if (selectedProps.length > 8) {
+      text += `...and ${selectedProps.length - 8} more listings.\n\n`;
+    }
+    
+    text += `View Full Selection:\n🔗 ${window.location.origin}/catalog`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
 
@@ -303,7 +314,22 @@ export default function Properties() {
     if (search) params.set('search', search);
 
     const url = `${window.location.origin}/catalog?${params.toString()}`;
-    const text = `🏠 *Curated Property Selection*\n\nI have filtered our inventory based on your requirements. View the matches here:\n🔗 ${url}`;
+    
+    let text = `🏠 *Curated Property Portfolio*\n`;
+    text += `I have identified ${filteredProperties.length} matches based on your criteria:\n\n`;
+    
+    filteredProperties.slice(0, 5).forEach((p, i) => {
+      text += `${i + 1}. *${p.title}*\n`;
+      text += `   💰 ${formatCurrency(p.price)} | 📍 ${p.location}\n\n`;
+    });
+
+    if (filteredProperties.length > 5) {
+      text += `Explore all ${filteredProperties.length} matches here:\n`;
+    } else {
+      text += `View full details:\n`;
+    }
+    
+    text += `🔗 ${url}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
 

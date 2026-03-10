@@ -409,7 +409,24 @@ export default function Leads() {
 
   const bulkShareMatches = () => {
     if (selectedLeadIds.length === 0) return;
-    toast.success(`Generated matching catalog links for ${selectedLeadIds.length} prospects.`);
+    const selectedLeads = leads.filter(l => selectedLeadIds.includes(l.id));
+    
+    let text = `📋 *Lead Pipeline Summary*\n`;
+    text += `Identified ${selectedLeads.length} active prospects for review:\n\n`;
+    
+    selectedLeads.slice(0, 10).forEach((l, i) => {
+      text += `${i + 1}. *${l.client_name}*\n`;
+      text += `   📞 ${l.client_phone}\n`;
+      text += `   🏘️ ${l.property_type_interested || 'Any'} | 💰 ${formatCurrency(l.min_budget || 0)} - ${formatCurrency(l.max_budget || 0)}\n`;
+      text += `   📍 ${l.preferred_location || 'Any'}\n\n`;
+    });
+
+    if (selectedLeads.length > 10) {
+      text += `...and ${selectedLeads.length - 10} more prospects in the pipeline.\n\n`;
+    }
+    
+    text += `Manage Pipeline:\n🔗 ${window.location.origin}/leads`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
 
   const leadColumns = [

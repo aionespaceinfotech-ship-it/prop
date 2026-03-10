@@ -46,7 +46,10 @@ async function startServer() {
 
   // Vite middleware for active development
   const vite = await createViteServer({
-    server: { middlewareMode: true },
+    server: { 
+      middlewareMode: true,
+      hmr: false 
+    },
     appType: "spa",
   });
   
