@@ -9,10 +9,10 @@ import {
   Calendar, 
   Handshake, 
   BarChart3, 
+  UserCog,
   LogOut,
   Menu,
   X,
-  Users2,
   ChevronRight,
   Settings,
   HelpCircle,
@@ -31,6 +31,7 @@ export default function Sidebar() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
+  const isManager = user?.role === 'Admin' || user?.role === 'Super Admin';
 
   const navItems = [
     { name: 'Dashboard', path: '/', icon: LayoutDashboard },
@@ -40,8 +41,8 @@ export default function Sidebar() {
     { name: 'Clients', path: '/clients', icon: UserCircle },
     { name: 'Visits', path: '/visits', icon: Calendar },
     { name: 'Deals', path: '/deals', icon: Handshake },
-    { name: 'Brokers', path: '/brokers', icon: Users2, adminOnly: true },
     { name: 'Reports', path: '/reports', icon: BarChart3, adminOnly: true },
+    { name: 'User Management', path: '/users', icon: UserCog, adminOnly: true },
   ];
 
   const handleLogout = () => {
@@ -83,7 +84,7 @@ export default function Sidebar() {
           <nav className="flex-1 px-6 space-y-1.5 overflow-y-auto no-scrollbar">
             <p className="px-4 mb-4 text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">Main Menu</p>
             {navItems.map((item) => {
-              if (item.adminOnly && user?.role !== 'Admin') return null;
+              if (item.adminOnly && !isManager) return null;
               return (
                 <NavLink
                   key={item.name}
@@ -113,18 +114,34 @@ export default function Sidebar() {
 
             <div className="pt-8 space-y-1.5">
               <p className="px-4 mb-4 text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">System</p>
-              <button className="w-full group flex items-center justify-between px-4 py-3.5 text-sm font-bold rounded-2xl text-slate-500 hover:bg-slate-50 hover:text-slate-900 transition-all duration-300">
-                <div className="flex items-center">
-                  <Settings className="mr-3 h-5 w-5 group-hover:rotate-45 transition-transform duration-500" />
-                  Settings
-                </div>
-              </button>
-              <button className="w-full group flex items-center justify-between px-4 py-3.5 text-sm font-bold rounded-2xl text-slate-500 hover:bg-slate-50 hover:text-slate-900 transition-all duration-300">
+              {isManager ? (
+                <NavLink
+                  to="/settings"
+                  onClick={() => setIsOpen(false)}
+                  className={({ isActive }) => cn(
+                    "w-full group flex items-center justify-between px-4 py-3.5 text-sm font-bold rounded-2xl transition-all duration-300",
+                    isActive ? "bg-slate-900 text-white shadow-xl shadow-slate-200" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+                  )}
+                >
+                  <div className="flex items-center">
+                    <Settings className="mr-3 h-5 w-5 group-hover:rotate-45 transition-transform duration-500" />
+                    Settings
+                  </div>
+                </NavLink>
+              ) : null}
+              <NavLink
+                to="/support"
+                onClick={() => setIsOpen(false)}
+                className={({ isActive }) => cn(
+                  "w-full group flex items-center justify-between px-4 py-3.5 text-sm font-bold rounded-2xl transition-all duration-300",
+                  isActive ? "bg-slate-900 text-white shadow-xl shadow-slate-200" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+                )}
+              >
                 <div className="flex items-center">
                   <HelpCircle className="mr-3 h-5 w-5" />
                   Support
                 </div>
-              </button>
+              </NavLink>
             </div>
           </nav>
 

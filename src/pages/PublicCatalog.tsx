@@ -148,9 +148,9 @@ export default function PublicCatalog() {
           >
             <option value="">All Types</option>
             <option value="Plot">Plot</option>
-            <option value="Apartment">Apartment</option>
+            <option value="Apartment / Flat">Apartment / Flat</option>
             <option value="Villa">Villa</option>
-            <option value="Commercial">Commercial</option>
+            <option value="Commercial Space">Commercial Space</option>
           </select>
 
           <div className="flex items-center gap-2">

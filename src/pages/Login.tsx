@@ -102,8 +102,10 @@ export default function Login() {
         <div className="mt-8 pt-6 border-t border-slate-100 text-center">
           <p className="text-sm text-slate-500">
             Demo Credentials:<br />
-            Admin: admin@propcrm.com / admin123<br />
-            Broker: john@propcrm.com / broker123
+            Super Admin: superadmin@propcrm.com / admin123<br />
+            Admin: rahul@propcrm.com / admin123<br />
+            Sales: amit@propcrm.com / broker123<br />
+            Sales: neha@propcrm.com / broker123
           </p>
         </div>
       </motion.div>

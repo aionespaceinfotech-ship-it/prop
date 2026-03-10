@@ -1,24 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { Building2, ChevronDown, Filter, Home, IndianRupee, LayoutGrid, List, MapPin, Maximize, Plus, Share2 } from 'lucide-react';
 import { useApi } from '../hooks/useApi';
-import { motion, AnimatePresence } from 'motion/react';
-import { 
-  Plus, 
-  Search, 
-  Filter, 
-  MapPin, 
-  Maximize, 
-  Building2,
-  Edit2, 
-  Trash2, 
-  Home,
-  Share2,
-  X,
-  IndianRupee,
-  ChevronDown,
-  LayoutGrid,
-  List,
-  ArrowUpRight
-} from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
@@ -26,22 +8,34 @@ import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
-import { formatCurrency, formatArea } from '../utils/formatters';
+import { formatArea, formatCurrency } from '../utils/formatters';
 import { cn } from '../utils/cn';
+import { APPROVAL_TYPES, CONSTRUCTION_STATUSES, FACING_OPTIONS, PROPERTY_TYPES, ROAD_WIDTH_PRESETS_FT } from '../constants/realEstate';
 
 interface Property {
   id: number;
   project_id: number | null;
   project_name: string | null;
   title: string;
-  type: 'Plot' | 'House' | 'Apartment' | 'Villa' | 'Shop' | 'Office' | 'Commercial' | 'Warehouse' | 'Land' | 'Industrial';
+  type: (typeof PROPERTY_TYPES)[number];
   location: string;
   price: number;
   area: number;
+  plot_size: string | null;
   facing: string;
+  approval_type: string | null;
+  road_width_ft: number | null;
+  map_link: string | null;
+  corner_plot: number;
+  gated_colony: number;
+  water_supply: number;
+  electricity_available: number;
+  sewerage_connection: number;
+  property_age_years: number | null;
+  construction_status: string | null;
   status: 'Available' | 'Booked' | 'Sold' | 'Rented';
   description: string;
-  images: string; // JSON string
+  images: string;
   owner_name: string;
   owner_contact: string;
   plot_number: string;
@@ -53,6 +47,33 @@ interface Project {
   name: string;
 }
 
+const DEFAULT_FORM = {
+  title: '',
+  type: 'Flat' as (typeof PROPERTY_TYPES)[number],
+  location: '',
+  price: '',
+  area: '',
+  plot_size: '',
+  facing: 'North',
+  approval_type: '',
+  road_width_ft: '',
+  corner_plot: '0',
+  gated_colony: '0',
+  water_supply: '0',
+  electricity_available: '0',
+  sewerage_connection: '0',
+  property_age_years: '',
+  construction_status: 'Ready to Move' as (typeof CONSTRUCTION_STATUSES)[number],
+  status: 'Available' as 'Available' | 'Booked' | 'Sold' | 'Rented',
+  description: '',
+  owner_name: '',
+  owner_contact: '',
+  project_id: '',
+  plot_number: '',
+  is_standalone: '1',
+  map_link: '',
+};
+
 export default function Properties() {
   const api = useApi();
   const [properties, setProperties] = useState<Property[]>([]);
@@ -61,42 +82,30 @@ export default function Properties() {
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [showFilters, setShowFilters] = useState(false);
-  
+
   const [filterType, setFilterType] = useState('All');
   const [filterLocation, setFilterLocation] = useState('');
+  const [filterApproval, setFilterApproval] = useState('All');
+  const [filterRoad, setFilterRoad] = useState('All');
+  const [filterFacing, setFilterFacing] = useState('All');
+  const [filterCorner, setFilterCorner] = useState('All');
+  const [filterGated, setFilterGated] = useState('All');
   const [filterMinPrice, setFilterMinPrice] = useState('');
   const [filterMaxPrice, setFilterMaxPrice] = useState('');
   const [filterMinArea, setFilterMinArea] = useState('');
   const [filterMaxArea, setFilterMaxArea] = useState('');
   const [filterProject, setFilterProject] = useState('All');
-  
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProperty, setEditingProperty] = useState<Property | null>(null);
-
-  // Form State
-  const [formData, setFormData] = useState({
-    title: '',
-    type: 'Apartment',
-    location: '',
-    price: '',
-    area: '',
-    facing: 'North',
-    status: 'Available',
-    description: '',
-    owner_name: '',
-    owner_contact: '',
-    project_id: '',
-    plot_number: '',
-    is_standalone: '1'
-  });
+  const [formData, setFormData] = useState(DEFAULT_FORM);
+  const [selectedPropertyIds, setSelectedPropertyIds] = useState<number[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [propsData, projectsData] = await Promise.all([
-        api.get('/properties'),
-        api.get('/projects')
-      ]);
+      const [propsData, projectsData] = await Promise.all([api.get('/properties'), api.get('/projects')]);
       setProperties(propsData);
       setProjects(projectsData);
     } catch (err) {
@@ -109,11 +118,21 @@ export default function Properties() {
   useEffect(() => {
     fetchData();
     const params = new URLSearchParams(window.location.search);
-    const projectId = params.get('project');
-    if (projectId) {
-      setFilterProject(projectId);
-      setShowFilters(true);
-    }
+    const applyQuery = (name: string, setter: (v: string) => void) => {
+      const value = params.get(name);
+      if (value) setter(value);
+    };
+
+    applyQuery('project', setFilterProject);
+    applyQuery('type', setFilterType);
+    applyQuery('approval_type', setFilterApproval);
+    applyQuery('road_width_ft', setFilterRoad);
+    applyQuery('facing', setFilterFacing);
+    applyQuery('min_price', setFilterMinPrice);
+    applyQuery('max_price', setFilterMaxPrice);
+    applyQuery('location', setFilterLocation);
+
+    if (params.toString()) setShowFilters(true);
   }, []);
 
   const handleOpenModal = (property?: Property) => {
@@ -123,47 +142,73 @@ export default function Properties() {
         title: property.title,
         type: property.type,
         location: property.location,
-        price: property.price.toString(),
-        area: property.area.toString(),
+        price: String(property.price),
+        area: String(property.area),
+        plot_size: property.plot_size || '',
         facing: property.facing || 'North',
+        approval_type: property.approval_type || '',
+        road_width_ft: property.road_width_ft ? String(property.road_width_ft) : '',
+        corner_plot: String(property.corner_plot || 0),
+        gated_colony: String(property.gated_colony || 0),
+        water_supply: String(property.water_supply || 0),
+        electricity_available: String(property.electricity_available || 0),
+        sewerage_connection: String(property.sewerage_connection || 0),
+        property_age_years: property.property_age_years ? String(property.property_age_years) : '',
+        construction_status: (property.construction_status as (typeof CONSTRUCTION_STATUSES)[number]) || 'Ready to Move',
         status: property.status,
         description: property.description || '',
         owner_name: property.owner_name || '',
         owner_contact: property.owner_contact || '',
         project_id: property.project_id?.toString() || '',
         plot_number: property.plot_number || '',
-        is_standalone: property.is_standalone?.toString() || '1'
+        is_standalone: property.is_standalone?.toString() || '1',
+        map_link: property.map_link || '',
       });
+      setImagePreviews(property.images ? JSON.parse(property.images || '[]') : []);
     } else {
       setEditingProperty(null);
-      setFormData({
-        title: '',
-        type: 'Apartment',
-        location: '',
-        price: '',
-        area: '',
-        facing: 'North',
-        status: 'Available',
-        description: '',
-        owner_name: '',
-        owner_contact: '',
-        project_id: '',
-        plot_number: '',
-        is_standalone: '1'
-      });
+      setFormData(DEFAULT_FORM);
+      setImagePreviews([]);
     }
     setIsModalOpen(true);
   };
 
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    Promise.all(
+      files.map(
+        (file) =>
+          new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(String(reader.result || ''));
+            reader.onerror = () => reject(new Error('Failed to read image'));
+            reader.readAsDataURL(file);
+          })
+      )
+    ).then((encoded) => setImagePreviews((prev) => [...prev, ...encoded]));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
     const payload = {
       ...formData,
-      price: parseFloat(formData.price),
-      area: parseFloat(formData.area),
-      project_id: formData.project_id ? parseInt(formData.project_id) : null,
-      is_standalone: parseInt(formData.is_standalone),
-      images: []
+      price: Number(formData.price),
+      area: Number(formData.area),
+      plot_size: formData.plot_size || undefined,
+      project_id: formData.project_id ? Number(formData.project_id) : null,
+      is_standalone: Number(formData.is_standalone),
+      road_width_ft: formData.road_width_ft ? Number(formData.road_width_ft) : undefined,
+      corner_plot: Number(formData.corner_plot),
+      gated_colony: Number(formData.gated_colony),
+      water_supply: Number(formData.water_supply),
+      electricity_available: Number(formData.electricity_available),
+      sewerage_connection: Number(formData.sewerage_connection),
+      property_age_years: formData.property_age_years ? Number(formData.property_age_years) : undefined,
+      approval_type: formData.approval_type || undefined,
+      map_link: formData.map_link || undefined,
+      images: imagePreviews,
     };
 
     try {
@@ -173,6 +218,7 @@ export default function Properties() {
         await api.post('/properties', payload);
       }
       setIsModalOpen(false);
+      setFormData(DEFAULT_FORM);
       fetchData();
     } catch (err) {
       alert('Error saving property');
@@ -180,86 +226,154 @@ export default function Properties() {
   };
 
   const handleDelete = async (id: number) => {
-    if (window.confirm('Are you sure you want to delete this property?')) {
-      try {
-        await api.delete(`/properties/${id}`);
-        fetchData();
-      } catch (err) {
-        alert('Error deleting property');
-      }
+    if (!window.confirm('Are you sure you want to delete this property?')) return;
+    try {
+      await api.delete(`/properties/${id}`);
+      fetchData();
+    } catch {
+      alert('Error deleting property');
     }
   };
 
-  const shareOnWhatsApp = (p: Property) => {
-    const catalogUrl = `${window.location.origin}/catalog?id=${p.id}`;
-    const text = `*Property Details*\n\n*Title:* ${p.title}\n*Type:* ${p.type}\n*Location:* ${p.location}\n*Price:* ${formatCurrency(p.price)}\n*Area:* ${formatArea(p.area)}\n*Facing:* ${p.facing || 'N/A'}\n*Status:* ${p.status}\n\n*View all details here:* ${catalogUrl}\n\nInterested? Contact us!`;
-    const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
-    window.open(url, '_blank');
+  const shareOnWhatsApp = (property: Property) => {
+    const roadText = property.road_width_ft ? `${property.road_width_ft} ft` : 'N/A';
+    const text = `Property: ${property.title}\nType: ${property.type}\nLocation: ${property.location}\nPrice: ${formatCurrency(property.price)}\nApproval: ${property.approval_type || 'N/A'}\nRoad: ${roadText}\nFacing: ${property.facing || 'N/A'}\n${window.location.origin}/catalog?id=${property.id}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
 
-  const shareCatalog = () => {
-    const catalogUrl = `${window.location.origin}/catalog`;
-    const text = `Check out our latest property listings here: ${catalogUrl}`;
-    const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
-    window.open(url, '_blank');
+  const togglePropertySelection = (propertyId: number) => {
+    setSelectedPropertyIds((prev) => (
+      prev.includes(propertyId) ? prev.filter((id) => id !== propertyId) : [...prev, propertyId]
+    ));
   };
 
-  const filteredProperties = properties.filter(p => {
-    const matchesSearch = p.title.toLowerCase().includes(search.toLowerCase()) || 
-                         p.location.toLowerCase().includes(search.toLowerCase());
-    const matchesType = filterType === 'All' || p.type === filterType;
-    const matchesLocation = !filterLocation || p.location.toLowerCase().includes(filterLocation.toLowerCase());
-    const matchesMinPrice = !filterMinPrice || p.price >= parseFloat(filterMinPrice);
-    const matchesMaxPrice = !filterMaxPrice || p.price <= parseFloat(filterMaxPrice);
-    const matchesMinArea = !filterMinArea || p.area >= parseFloat(filterMinArea);
-    const matchesMaxArea = !filterMaxArea || p.area <= parseFloat(filterMaxArea);
-    const matchesProject = filterProject === 'All' || p.project_id?.toString() === filterProject;
-    
-    return matchesSearch && matchesType && matchesLocation && matchesMinPrice && matchesMaxPrice && matchesMinArea && matchesMaxArea && matchesProject;
-  });
-
-  const getStatusVariant = (status: string) => {
-    switch (status) {
-      case 'Available': return 'success';
-      case 'Booked': return 'warning';
-      case 'Sold': return 'error';
-      case 'Rented': return 'info';
-      default: return 'neutral';
+  const sharePropertiesBatch = (list: Property[], label: string) => {
+    if (list.length === 0) {
+      alert(`No properties available to share for ${label.toLowerCase()}.`);
+      return;
     }
+    const lines: string[] = [`${label}:`, ''];
+    list.slice(0, 10).forEach((property, idx) => {
+      const roadText = property.road_width_ft ? `${property.road_width_ft} ft` : 'N/A';
+      lines.push(`${idx + 1}. ${property.title}`);
+      lines.push(`   Type: ${property.type}`);
+      lines.push(`   Location: ${property.location}`);
+      lines.push(`   Price: ${formatCurrency(property.price)}`);
+      lines.push(`   Road: ${roadText}`);
+      lines.push(`   Facing: ${property.facing || 'N/A'}`);
+      lines.push(`   ${window.location.origin}/catalog?id=${property.id}`);
+      lines.push('');
+    });
+    lines.push('Let me know which options you want to visit.');
+    window.open(`https://wa.me/?text=${encodeURIComponent(lines.join('\n'))}`, '_blank');
+  };
+
+  const filteredProperties = useMemo(() => {
+    return properties.filter((property) => {
+      const roadText = property.road_width_ft ? String(property.road_width_ft) : '';
+      const matchesSearch =
+        property.title.toLowerCase().includes(search.toLowerCase()) ||
+        property.location.toLowerCase().includes(search.toLowerCase());
+      const matchesType = filterType === 'All' || property.type === filterType;
+      const matchesLocation = !filterLocation || property.location.toLowerCase().includes(filterLocation.toLowerCase());
+      const matchesApproval = filterApproval === 'All' || property.approval_type === filterApproval;
+      const matchesRoad = filterRoad === 'All' || roadText.includes(filterRoad);
+      const matchesFacing = filterFacing === 'All' || property.facing === filterFacing;
+      const matchesCorner = filterCorner === 'All' || String(property.corner_plot || 0) === filterCorner;
+      const matchesGated = filterGated === 'All' || String(property.gated_colony || 0) === filterGated;
+      const matchesMinPrice = !filterMinPrice || property.price >= Number(filterMinPrice);
+      const matchesMaxPrice = !filterMaxPrice || property.price <= Number(filterMaxPrice);
+      const matchesMinArea = !filterMinArea || property.area >= Number(filterMinArea);
+      const matchesMaxArea = !filterMaxArea || property.area <= Number(filterMaxArea);
+      const matchesProject = filterProject === 'All' || property.project_id?.toString() === filterProject;
+
+      return (
+        matchesSearch &&
+        matchesType &&
+        matchesLocation &&
+        matchesApproval &&
+        matchesRoad &&
+        matchesFacing &&
+        matchesCorner &&
+        matchesGated &&
+        matchesMinPrice &&
+        matchesMaxPrice &&
+        matchesMinArea &&
+        matchesMaxArea &&
+        matchesProject
+      );
+    });
+  }, [
+    filterApproval,
+    filterCorner,
+    filterFacing,
+    filterGated,
+    filterLocation,
+    filterMaxArea,
+    filterMaxPrice,
+    filterMinArea,
+    filterMinPrice,
+    filterProject,
+    filterRoad,
+    filterType,
+    properties,
+    search,
+  ]);
+
+  const resetFilters = () => {
+    setFilterType('All');
+    setFilterLocation('');
+    setFilterApproval('All');
+    setFilterRoad('All');
+    setFilterFacing('All');
+    setFilterCorner('All');
+    setFilterGated('All');
+    setFilterMinPrice('');
+    setFilterMaxPrice('');
+    setFilterMinArea('');
+    setFilterMaxArea('');
+    setFilterProject('All');
   };
 
   return (
-    <div className="p-6 lg:p-10 space-y-10 max-w-[1600px] mx-auto">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <PageHeader 
-          title="Property Portfolio" 
-          subtitle={`${filteredProperties.length} listings available in your inventory.`}
-        />
+    <div className="p-6 lg:p-10 space-y-8 max-w-[1600px] mx-auto">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <PageHeader title="Property Portfolio" subtitle={`${filteredProperties.length} matching properties`} />
         <div className="flex items-center gap-3">
           <div className="flex bg-white border border-slate-200 rounded-xl p-1 shadow-sm">
-            <button 
+            <button
               onClick={() => setViewMode('grid')}
-              className={cn(
-                "p-2 rounded-lg transition-all",
-                viewMode === 'grid' ? "bg-slate-100 text-slate-900" : "text-slate-400 hover:text-slate-600"
-              )}
+              className={cn('p-2 rounded-lg transition-all', viewMode === 'grid' ? 'bg-slate-100 text-slate-900' : 'text-slate-400')}
             >
               <LayoutGrid size={18} />
             </button>
-            <button 
+            <button
               onClick={() => setViewMode('list')}
-              className={cn(
-                "p-2 rounded-lg transition-all",
-                viewMode === 'list' ? "bg-slate-100 text-slate-900" : "text-slate-400 hover:text-slate-600"
-              )}
+              className={cn('p-2 rounded-lg transition-all', viewMode === 'list' ? 'bg-slate-100 text-slate-900' : 'text-slate-400')}
             >
               <List size={18} />
             </button>
           </div>
           <Button variant="outline" onClick={() => setShowFilters(!showFilters)} className="rounded-xl">
-            <Filter size={18} className="mr-2" />
+            <Filter size={16} className="mr-2" />
             Filters
-            <ChevronDown size={16} className={cn("ml-2 transition-transform", showFilters && "rotate-180")} />
+            <ChevronDown size={16} className={cn('ml-2 transition-transform', showFilters && 'rotate-180')} />
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => sharePropertiesBatch(filteredProperties, 'Filtered Properties')}
+            className="rounded-xl"
+          >
+            <Share2 size={16} className="mr-2" />
+            Share Filtered
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => sharePropertiesBatch(filteredProperties.filter((p) => selectedPropertyIds.includes(p.id)), 'Selected Properties')}
+            className="rounded-xl"
+          >
+            <Share2 size={16} className="mr-2" />
+            Share Selected ({selectedPropertyIds.length})
           </Button>
           <Button onClick={() => handleOpenModal()} className="rounded-xl shadow-lg shadow-emerald-200">
             <Plus size={18} className="mr-2" />
@@ -268,426 +382,203 @@ export default function Properties() {
         </div>
       </div>
 
-      {/* Search & Quick Filters */}
-      <div className="flex flex-col md:flex-row gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-          <input 
-            type="text" 
-            placeholder="Search by title, location, or owner..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-12 pr-4 py-3.5 bg-white border border-slate-200 rounded-2xl text-sm focus:outline-none focus:ring-4 focus:ring-emerald-500/5 focus:border-emerald-500 transition-all shadow-sm"
-          />
-        </div>
-        <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0 no-scrollbar">
-          {['All', 'Plot', 'House', 'Apartment', 'Villa'].map((type) => (
-            <button
-              key={type}
-              onClick={() => setFilterType(type)}
-              className={cn(
-                "px-5 py-3 rounded-2xl text-sm font-bold whitespace-nowrap transition-all border shadow-sm",
-                filterType === type 
-                  ? "bg-slate-900 border-slate-900 text-white" 
-                  : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
-              )}
-            >
-              {type}
-            </button>
-          ))}
-        </div>
+      <div className="relative">
+        <input
+          type="text"
+          placeholder="Search by title or location"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm"
+        />
       </div>
 
-      {/* Advanced Filters Drawer */}
-      <AnimatePresence>
-        {showFilters && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="overflow-hidden"
-          >
-            <Card className="border-none shadow-sm ring-1 ring-slate-200/50 p-8 bg-slate-50/50">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-                <Input 
-                  label="Specific Location"
-                  placeholder="e.g. South Delhi"
-                  value={filterLocation}
-                  onChange={(e) => setFilterLocation(e.target.value)}
-                  className="bg-white"
-                />
-                <Select 
-                  label="Project / Colony"
-                  value={filterProject}
-                  onChange={(e) => setFilterProject(e.target.value)}
-                  options={[
-                    { value: 'All', label: 'All Projects' },
-                    ...projects.map(p => ({ value: p.id.toString(), label: p.name }))
-                  ]}
-                  className="bg-white"
-                />
-                <div className="space-y-2">
-                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest block">Budget Range</label>
-                  <div className="flex gap-3">
-                    <Input 
-                      type="number"
-                      placeholder="Min"
-                      value={filterMinPrice}
-                      onChange={(e) => setFilterMinPrice(e.target.value)}
-                      className="bg-white"
-                    />
-                    <Input 
-                      type="number"
-                      placeholder="Max"
-                      value={filterMaxPrice}
-                      onChange={(e) => setFilterMaxPrice(e.target.value)}
-                      className="bg-white"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest block">Area (sqft)</label>
-                  <div className="flex gap-3">
-                    <Input 
-                      type="number"
-                      placeholder="Min"
-                      value={filterMinArea}
-                      onChange={(e) => setFilterMinArea(e.target.value)}
-                      className="bg-white"
-                    />
-                    <Input 
-                      type="number"
-                      placeholder="Max"
-                      value={filterMaxArea}
-                      onChange={(e) => setFilterMaxArea(e.target.value)}
-                      className="bg-white"
-                    />
-                  </div>
-                </div>
-              </div>
-              <div className="flex justify-end mt-8 pt-6 border-t border-slate-200">
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="text-slate-400 font-bold text-xs uppercase tracking-widest"
-                  onClick={() => {
-                    setFilterLocation('');
-                    setFilterMinPrice('');
-                    setFilterMaxPrice('');
-                    setFilterMinArea('');
-                    setFilterMaxArea('');
-                    setFilterProject('All');
-                  }}
-                >
-                  Reset Filters
-                </Button>
-              </div>
-            </Card>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {showFilters ? (
+        <Card className="p-6 border-none shadow-sm ring-1 ring-slate-200/50">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            <Select label="Type" value={filterType} onChange={(e) => setFilterType(e.target.value)} options={[{ value: 'All', label: 'All Types' }, ...PROPERTY_TYPES.map((item) => ({ value: item, label: item }))]} />
+            <Select label="Approval" value={filterApproval} onChange={(e) => setFilterApproval(e.target.value)} options={[{ value: 'All', label: 'All Approvals' }, ...APPROVAL_TYPES.map((item) => ({ value: item, label: item }))]} />
+            <Select label="Road" value={filterRoad} onChange={(e) => setFilterRoad(e.target.value)} options={[{ value: 'All', label: 'Any Road' }, ...ROAD_WIDTH_PRESETS_FT.map((item) => ({ value: String(item), label: `${item} ft` }))]} />
+            <Select label="Facing" value={filterFacing} onChange={(e) => setFilterFacing(e.target.value)} options={[{ value: 'All', label: 'Any Facing' }, ...FACING_OPTIONS.map((item) => ({ value: item, label: item }))]} />
+            <Select label="Corner Plot" value={filterCorner} onChange={(e) => setFilterCorner(e.target.value)} options={[{ value: 'All', label: 'All' }, { value: '1', label: 'Yes' }, { value: '0', label: 'No' }]} />
+            <Select label="Gated Colony" value={filterGated} onChange={(e) => setFilterGated(e.target.value)} options={[{ value: 'All', label: 'All' }, { value: '1', label: 'Yes' }, { value: '0', label: 'No' }]} />
+            <Input label="Min Budget (INR)" type="number" value={filterMinPrice} onChange={(e) => setFilterMinPrice(e.target.value)} />
+            <Input label="Max Budget (INR)" type="number" value={filterMaxPrice} onChange={(e) => setFilterMaxPrice(e.target.value)} />
+            <Input label="Min Area" type="number" value={filterMinArea} onChange={(e) => setFilterMinArea(e.target.value)} />
+            <Input label="Max Area" type="number" value={filterMaxArea} onChange={(e) => setFilterMaxArea(e.target.value)} />
+            <Input label="Location" value={filterLocation} onChange={(e) => setFilterLocation(e.target.value)} />
+            <Select
+              label="Project"
+              value={filterProject}
+              onChange={(e) => setFilterProject(e.target.value)}
+              options={[{ value: 'All', label: 'All Projects' }, ...projects.map((project) => ({ value: String(project.id), label: project.name }))]}
+            />
+          </div>
+          <div className="flex justify-end mt-4">
+            <Button variant="ghost" onClick={resetFilters}>Reset Filters</Button>
+          </div>
+        </Card>
+      ) : null}
 
-      {/* Property Grid */}
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-32 gap-4">
-          <div className="w-12 h-12 border-4 border-emerald-500/10 border-t-emerald-500 rounded-full animate-spin" />
-          <p className="text-slate-400 font-medium animate-pulse">Curating your portfolio...</p>
-        </div>
+        <div className="py-20 text-center text-slate-500">Loading properties...</div>
       ) : (
-        <div className={cn(
-          "grid gap-8",
-          viewMode === 'grid' ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3" : "grid-cols-1"
-        )}>
-          {filteredProperties.map((p, idx) => (
-            <motion.div
-              layout
-              key={p.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: idx * 0.05 }}
-            >
-              <Card className={cn(
-                "p-0 group hover:shadow-2xl hover:-translate-y-1 transition-all duration-500 border-none bg-white shadow-sm ring-1 ring-slate-200/50 overflow-hidden",
-                viewMode === 'list' && "flex flex-col md:flex-row h-auto md:h-64"
-              )}>
-                <div className={cn(
-                  "relative bg-slate-100 overflow-hidden",
-                  viewMode === 'grid' ? "h-64" : "h-64 md:h-full md:w-80 shrink-0"
-                )}>
-                  <img 
-                    src={p.images ? (JSON.parse(p.images)[0] || `https://picsum.photos/seed/${p.id}/800/600`) : `https://picsum.photos/seed/${p.id}/800/600`} 
-                    alt={p.title}
-                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                    referrerPolicy="no-referrer"
-                  />
-                  <div className="absolute top-4 left-4 flex flex-col gap-2">
-                    <Badge className={cn(
-                      "shadow-lg backdrop-blur-md border-none px-3 py-1 text-[10px] font-bold uppercase tracking-widest",
-                      p.status === 'Available' ? "bg-emerald-500/90 text-white" : "bg-slate-900/80 text-white"
-                    )}>
-                      {p.status}
-                    </Badge>
-                  </div>
-                  <div className="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 transition-all duration-300">
-                    <Button 
-                      size="icon" 
-                      className="rounded-full bg-white text-slate-900 hover:bg-emerald-600 hover:text-white shadow-xl"
-                      onClick={() => shareOnWhatsApp(p)}
-                    >
-                      <Share2 size={18} />
-                    </Button>
-                  </div>
+        <div className={cn('grid gap-6', viewMode === 'grid' ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1')}>
+          {filteredProperties.map((property) => {
+            const images = property.images ? JSON.parse(property.images || '[]') : [];
+            const imageSrc = images[0] || `https://picsum.photos/seed/${property.id}/800/600`;
+            const roadText = property.road_width_ft ? `${property.road_width_ft} ft` : 'N/A';
+
+            return (
+              <Card key={property.id} className={cn('p-0 overflow-hidden border-none shadow-sm ring-1 ring-slate-200/50', viewMode === 'list' && 'flex flex-col md:flex-row')}>
+                <div className={cn('bg-slate-100', viewMode === 'grid' ? 'h-56' : 'h-56 md:w-80 md:h-auto')}>
+                  <img src={imageSrc} alt={property.title} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                 </div>
-                
-                <div className="p-8 flex-1 flex flex-col">
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="space-y-1">
-                      <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-[0.2em]">
-                        {p.type} • {p.facing} Facing
-                      </span>
-                      <h3 className="text-xl font-bold text-slate-900 group-hover:text-emerald-700 transition-colors line-clamp-1">
-                        {p.title}
-                      </h3>
+                <div className="p-6 flex-1 flex flex-col gap-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <label className="inline-flex items-center gap-2 text-xs text-slate-500 mb-1 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={selectedPropertyIds.includes(property.id)}
+                          onChange={() => togglePropertySelection(property.id)}
+                        />
+                        Select
+                      </label>
+                      <h3 className="text-lg font-bold text-slate-900">{property.title}</h3>
+                      <p className="text-sm text-slate-500 flex items-center mt-1"><MapPin size={14} className="mr-1" />{property.location}</p>
                     </div>
-                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all duration-300">
-                      <button onClick={() => handleOpenModal(p)} className="p-2 text-slate-400 hover:text-emerald-600 transition-colors">
-                        <Edit2 size={16} />
-                      </button>
-                      <button onClick={() => handleDelete(p.id)} className="p-2 text-slate-400 hover:text-rose-600 transition-colors">
-                        <Trash2 size={16} />
-                      </button>
+                    <div className="flex gap-2">
+                      <Button size="icon" variant="outline" onClick={() => shareOnWhatsApp(property)}><Share2 size={16} /></Button>
+                      <Button size="icon" variant="outline" onClick={() => handleOpenModal(property)}><Building2 size={16} /></Button>
                     </div>
                   </div>
-                  
-                  <div className="flex items-center text-slate-500 text-sm mb-8">
-                    <MapPin size={16} className="mr-2 text-slate-400 shrink-0" />
-                    <span className="line-clamp-1 font-medium">{p.location}</span>
+
+                  <div className="flex gap-2 flex-wrap">
+                    <Badge variant="neutral">{property.type}</Badge>
+                    {property.approval_type ? <Badge variant="info">{property.approval_type}</Badge> : null}
+                    <Badge variant="warning">Road: {roadText}</Badge>
+                    <Badge variant="neutral">{property.facing || 'N/A'} facing</Badge>
+                    {property.corner_plot ? <Badge variant="success">Corner</Badge> : null}
+                    {property.gated_colony ? <Badge variant="success">Gated</Badge> : null}
                   </div>
-                  
-                  <div className="mt-auto pt-6 border-t border-slate-100 flex items-center justify-between">
-                    <div className="space-y-1">
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Investment</p>
-                      <div className="flex items-center text-2xl font-black text-slate-900">
-                        <IndianRupee size={20} className="text-emerald-600 mr-1 shrink-0" />
-                        {formatCurrency(p.price)}
-                      </div>
+
+                  <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-100">
+                    <div>
+                      <p className="text-xs text-slate-400 uppercase font-bold">Investment</p>
+                      <p className="font-black text-slate-900 flex items-center"><IndianRupee size={14} className="mr-1 text-emerald-600" />{formatCurrency(property.price)}</p>
                     </div>
-                    <div className="text-right space-y-1">
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Dimensions</p>
-                      <div className="flex items-center text-sm font-bold text-slate-700 justify-end">
-                        <Maximize size={16} className="mr-2 text-slate-400 shrink-0" />
-                        {formatArea(p.area)}
-                      </div>
+                    <div className="text-right">
+                      <p className="text-xs text-slate-400 uppercase font-bold">Area</p>
+                      <p className="font-bold text-slate-700 flex items-center justify-end"><Maximize size={14} className="mr-1" />{formatArea(property.area)}</p>
                     </div>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <Button variant="ghost" className="text-rose-600" onClick={() => handleDelete(property.id)}>Delete</Button>
                   </div>
                 </div>
               </Card>
-            </motion.div>
-          ))}
-          
-          {filteredProperties.length === 0 && (
-            <div className="col-span-full py-32 text-center bg-white rounded-[2rem] border-2 border-dashed border-slate-200">
-              <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Home size={32} className="text-slate-300" />
-              </div>
-              <h3 className="text-xl font-bold text-slate-900 mb-2">No matches found</h3>
-              <p className="text-slate-500 max-w-xs mx-auto mb-8">Try adjusting your filters or search terms to find what you're looking for.</p>
-              <Button variant="outline" className="rounded-xl" onClick={() => {
-                setSearch('');
-                setFilterType('All');
-                setFilterLocation('');
-              }}>
-                Clear all filters
-              </Button>
+            );
+          })}
+
+          {filteredProperties.length === 0 ? (
+            <div className="col-span-full py-20 text-center">
+              <Home size={36} className="mx-auto text-slate-300" />
+              <p className="mt-4 text-slate-500">No matching properties</p>
             </div>
-          )}
+          ) : null}
         </div>
       )}
 
-      {/* Modal - Enhanced for premium feel */}
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title={editingProperty ? 'Refine Listing' : 'New Property Listing'}
+        title={editingProperty ? 'Edit Property' : 'Add Property'}
         size="xl"
         footer={
           <div className="flex items-center justify-between w-full">
-            <Button variant="ghost" onClick={() => setIsModalOpen(false)} className="text-slate-400 font-bold uppercase tracking-widest text-xs">Discard</Button>
-            <div className="flex gap-3">
-              <Button variant="outline" onClick={() => setIsModalOpen(false)} className="rounded-xl">Cancel</Button>
-              <Button onClick={handleSubmit} className="rounded-xl shadow-lg shadow-emerald-200">
-                {editingProperty ? 'Save Changes' : 'Publish Listing'}
-              </Button>
-            </div>
+            <Button variant="ghost" onClick={() => setIsModalOpen(false)}>Cancel</Button>
+            <Button onClick={handleSubmit}>{editingProperty ? 'Save Changes' : 'Create Property'}</Button>
           </div>
         }
       >
-        <form onSubmit={handleSubmit} className="space-y-10 py-4">
-          {!editingProperty && (
-            <div className="flex justify-end">
-              <button 
-                type="button"
-                onClick={() => setFormData({
-                  title: 'Skyline Penthouse',
-                  type: 'Apartment',
-                  location: 'South Delhi, Hauz Khas',
-                  price: '15000000',
-                  area: '1850',
-                  facing: 'East',
-                  status: 'Available',
-                  description: 'A beautiful east-facing apartment with modern amenities and great connectivity.',
-                  owner_name: 'Amit Sharma',
-                  owner_contact: '9810012345',
-                  project_id: '',
-                  plot_number: '',
-                  is_standalone: '1'
-                })}
-                className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest hover:underline"
-              >
-                Auto-fill sample data
-              </button>
-            </div>
-          )}
+        <form onSubmit={handleSubmit} className="space-y-8 py-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Input label="Property Title" required value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} />
+            <Select label="Property Type" value={formData.type} onChange={(e) => setFormData({ ...formData, type: e.target.value as (typeof PROPERTY_TYPES)[number] })} options={PROPERTY_TYPES.map((item) => ({ value: item, label: item }))} />
+            <Input label="Location" required value={formData.location} onChange={(e) => setFormData({ ...formData, location: e.target.value })} />
+            <Input label="Plot / Unit Number" value={formData.plot_number} onChange={(e) => setFormData({ ...formData, plot_number: e.target.value })} />
+            <Input label="Price (INR)" required type="number" value={formData.price} onChange={(e) => setFormData({ ...formData, price: e.target.value })} />
+            <Input label="Area (sq ft)" required type="number" value={formData.area} onChange={(e) => setFormData({ ...formData, area: e.target.value })} />
+            <Input label="Plot Size (Manual)" value={formData.plot_size} onChange={(e) => setFormData({ ...formData, plot_size: e.target.value })} placeholder="20x50" />
+            <Select label="Facing" value={formData.facing} onChange={(e) => setFormData({ ...formData, facing: e.target.value })} options={FACING_OPTIONS.map((item) => ({ value: item, label: item }))} />
+            <Select label="Status" value={formData.status} onChange={(e) => setFormData({ ...formData, status: e.target.value as 'Available' | 'Booked' | 'Sold' | 'Rented' })} options={['Available', 'Booked', 'Sold', 'Rented'].map((item) => ({ value: item, label: item }))} />
+          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-8">
-            <div className="md:col-span-2">
-              <Input 
-                label="Property Title"
-                required
-                value={formData.title}
-                onChange={(e) => setFormData({...formData, title: e.target.value})}
-                placeholder="e.g. Luxury 3BHK Apartment"
-                className="text-lg font-bold"
-              />
+          <div className="pt-6 border-t border-slate-200">
+            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">Legal & Access</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Select label="Approval Type" value={formData.approval_type} onChange={(e) => setFormData({ ...formData, approval_type: e.target.value })} options={[{ value: '', label: 'Select approval type' }, ...APPROVAL_TYPES.map((item) => ({ value: item, label: item }))]} />
+              <Select label="Road Width (Preset)" value={formData.road_width_ft} onChange={(e) => setFormData({ ...formData, road_width_ft: e.target.value })} options={[{ value: '', label: 'Select road width' }, ...ROAD_WIDTH_PRESETS_FT.map((item) => ({ value: String(item), label: `${item} ft` }))]} />
+              <Input label="Map Link (Google Maps URL)" value={formData.map_link} onChange={(e) => setFormData({ ...formData, map_link: e.target.value })} placeholder="https://maps.google.com/..." />
+              <Select label="Construction Status" value={formData.construction_status} onChange={(e) => setFormData({ ...formData, construction_status: e.target.value as (typeof CONSTRUCTION_STATUSES)[number] })} options={CONSTRUCTION_STATUSES.map((item) => ({ value: item, label: item }))} />
             </div>
-            
-            <Select 
-              label="Property Category"
-              value={formData.is_standalone}
-              onChange={(e) => setFormData({...formData, is_standalone: e.target.value})}
-              options={[
-                { value: '1', label: 'Standalone Property' },
-                { value: '0', label: 'Part of Project / Colony' },
-              ]}
-            />
+          </div>
 
-            {formData.is_standalone === '0' && (
-              <Select 
-                label="Select Project / Colony"
-                required={formData.is_standalone === '0'}
+          <div className="pt-6 border-t border-slate-200">
+            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">Amenities & Specs</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <Select label="Corner Plot" value={formData.corner_plot} onChange={(e) => setFormData({ ...formData, corner_plot: e.target.value })} options={[{ value: '1', label: 'Yes' }, { value: '0', label: 'No' }]} />
+              <Select label="Gated Colony" value={formData.gated_colony} onChange={(e) => setFormData({ ...formData, gated_colony: e.target.value })} options={[{ value: '1', label: 'Yes' }, { value: '0', label: 'No' }]} />
+              <Select label="Water Supply" value={formData.water_supply} onChange={(e) => setFormData({ ...formData, water_supply: e.target.value })} options={[{ value: '1', label: 'Yes' }, { value: '0', label: 'No' }]} />
+              <Select label="Electricity" value={formData.electricity_available} onChange={(e) => setFormData({ ...formData, electricity_available: e.target.value })} options={[{ value: '1', label: 'Yes' }, { value: '0', label: 'No' }]} />
+              <Select label="Sewerage Connection" value={formData.sewerage_connection} onChange={(e) => setFormData({ ...formData, sewerage_connection: e.target.value })} options={[{ value: '1', label: 'Yes' }, { value: '0', label: 'No' }]} />
+              <Input label="Property Age (Years)" type="number" value={formData.property_age_years} onChange={(e) => setFormData({ ...formData, property_age_years: e.target.value })} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-6 border-t border-slate-200">
+            <Select label="Property Category" value={formData.is_standalone} onChange={(e) => setFormData({ ...formData, is_standalone: e.target.value })} options={[{ value: '1', label: 'Standalone Property' }, { value: '0', label: 'Part of Project' }]} />
+            {formData.is_standalone === '0' ? (
+              <Select
+                label="Project / Colony"
                 value={formData.project_id}
-                onChange={(e) => setFormData({...formData, project_id: e.target.value})}
-                options={[
-                  { value: '', label: 'Choose a project...' },
-                  ...projects.map(p => ({ value: p.id.toString(), label: p.name }))
-                ]}
+                onChange={(e) => setFormData({ ...formData, project_id: e.target.value })}
+                options={[{ value: '', label: 'Select project' }, ...projects.map((project) => ({ value: String(project.id), label: project.name }))]}
               />
+            ) : (
+              <div />
             )}
+            <Input label="Owner Name" value={formData.owner_name} onChange={(e) => setFormData({ ...formData, owner_name: e.target.value })} />
+            <Input label="Owner Contact" value={formData.owner_contact} onChange={(e) => setFormData({ ...formData, owner_contact: e.target.value })} />
+          </div>
 
-            <Select 
-              label="Property Type"
-              value={formData.type}
-              onChange={(e) => setFormData({...formData, type: e.target.value as any})}
-              options={[
-                { value: 'Plot', label: 'Plot' },
-                { value: 'House', label: 'House' },
-                { value: 'Apartment', label: 'Apartment' },
-                { value: 'Villa', label: 'Villa' },
-                { value: 'Shop', label: 'Shop' },
-                { value: 'Office', label: 'Office' },
-                { value: 'Commercial', label: 'Commercial' },
-                { value: 'Warehouse', label: 'Warehouse' },
-                { value: 'Land', label: 'Land' },
-                { value: 'Industrial', label: 'Industrial' },
-              ]}
+          <div className="space-y-2">
+            <label className="text-sm font-semibold text-slate-700 block">Description</label>
+            <textarea
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-sm h-32 resize-none"
+              placeholder="Property highlights"
             />
-            
-            <Input 
-              label="Plot / Unit Number"
-              value={formData.plot_number}
-              onChange={(e) => setFormData({...formData, plot_number: e.target.value})}
-              placeholder="e.g. 101 or A-12"
-            />
+          </div>
 
-            <Select 
-              label="Facing"
-              value={formData.facing}
-              onChange={(e) => setFormData({...formData, facing: e.target.value})}
-              options={[
-                { value: 'North', label: 'North' },
-                { value: 'South', label: 'South' },
-                { value: 'East', label: 'East' },
-                { value: 'West', label: 'West' },
-                { value: 'North-East', label: 'North-East' },
-                { value: 'North-West', label: 'North-West' },
-                { value: 'South-East', label: 'South-East' },
-                { value: 'South-West', label: 'South-West' },
-              ]}
-            />
-            
-            <Select 
-              label="Current Status"
-              value={formData.status}
-              onChange={(e) => setFormData({...formData, status: e.target.value as any})}
-              options={[
-                { value: 'Available', label: 'Available' },
-                { value: 'Booked', label: 'Booked' },
-                { value: 'Sold', label: 'Sold' },
-                { value: 'Rented', label: 'Rented' },
-              ]}
-            />
-            
-            <Input 
-              label="Location"
-              required
-              value={formData.location}
-              onChange={(e) => setFormData({...formData, location: e.target.value})}
-              placeholder="e.g. Downtown, City Center"
-            />
-            
-            <div className="grid grid-cols-2 gap-4">
-              <Input 
-                label="Price (₹)"
-                required
-                type="number"
-                value={formData.price}
-                onChange={(e) => setFormData({...formData, price: e.target.value})}
-                placeholder="e.g. 5000000"
-              />
-              <Input 
-                label="Area (sq ft)"
-                required
-                type="number"
-                value={formData.area}
-                onChange={(e) => setFormData({...formData, area: e.target.value})}
-                placeholder="e.g. 1200"
-              />
-            </div>
-            
-            <div className="md:col-span-2 space-y-2">
-              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest block">Description</label>
-              <textarea 
-                value={formData.description}
-                onChange={(e) => setFormData({...formData, description: e.target.value})}
-                className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-5 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-emerald-500/5 focus:border-emerald-500 transition-all duration-200 h-40 resize-none"
-                placeholder="Describe the unique features of this property..."
-              />
-            </div>
-            
-            <div className="md:col-span-2 pt-8 border-t border-slate-100">
-              <h3 className="text-sm font-bold text-slate-900 mb-6">Owner Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <Input 
-                  label="Full Name"
-                  value={formData.owner_name}
-                  onChange={(e) => setFormData({...formData, owner_name: e.target.value})}
-                />
-                <Input 
-                  label="Contact Number"
-                  value={formData.owner_contact}
-                  onChange={(e) => setFormData({...formData, owner_contact: e.target.value})}
-                />
-              </div>
+          <div className="space-y-3 pt-6 border-t border-slate-200">
+            <label className="text-sm font-semibold text-slate-700 block">Property Photos</label>
+            <input type="file" accept="image/*" multiple onChange={handleImageUpload} className="block w-full text-sm text-slate-600" />
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {imagePreviews.map((img, idx) => (
+                <div key={`${idx}-${img.slice(0, 10)}`} className="relative border border-slate-200 rounded-xl overflow-hidden">
+                  <img src={img} alt={`property-${idx}`} className="h-24 w-full object-cover" />
+                  <button
+                    type="button"
+                    className="absolute top-1 right-1 bg-white/90 text-rose-600 text-xs px-2 py-0.5 rounded"
+                    onClick={() => setImagePreviews((prev) => prev.filter((_, i) => i !== idx))}
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
             </div>
           </div>
         </form>

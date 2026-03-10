@@ -40,6 +40,18 @@ interface Project {
   layout_map: string;
   developer_name: string;
   created_at: string;
+  total_plots_count?: number;
+  available_plots_count?: number;
+  sold_plots_count?: number;
+}
+
+interface ProjectPlot {
+  id: number;
+  plot_number: string;
+  size: string;
+  facing: string;
+  road_width_ft: number;
+  status: 'Available' | 'Sold';
 }
 
 export default function Projects() {
@@ -49,6 +61,15 @@ export default function Projects() {
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [plotProject, setPlotProject] = useState<Project | null>(null);
+  const [isPlotModalOpen, setIsPlotModalOpen] = useState(false);
+  const [plots, setPlots] = useState<ProjectPlot[]>([]);
+  const [bulkRanges, setBulkRanges] = useState('1-10');
+  const [bulkSize, setBulkSize] = useState('1200');
+  const [bulkFacing, setBulkFacing] = useState('North');
+  const [bulkRoadWidth, setBulkRoadWidth] = useState('30');
+  const [bulkPrice, setBulkPrice] = useState('0');
+  const [singlePlot, setSinglePlot] = useState({ plot_number: '', size: '', facing: 'North', road_width_ft: '30', price: '0', status: 'Available' });
 
   const [formData, setFormData] = useState({
     name: '',
@@ -130,6 +151,58 @@ export default function Projects() {
       fetchProjects();
     } catch (err) {
       alert('Error saving project');
+    }
+  };
+
+  const fetchProjectPlots = async (projectId: number) => {
+    try {
+      const data = await api.get(`/projects/${projectId}/plots`);
+      setPlots(data);
+    } catch (err) {
+      console.error(err);
+      setPlots([]);
+    }
+  };
+
+  const openPlotModal = (project: Project) => {
+    setPlotProject(project);
+    setIsPlotModalOpen(true);
+    fetchProjectPlots(project.id);
+  };
+
+  const createBulkPlots = async () => {
+    if (!plotProject) return;
+    try {
+      await api.post(`/projects/${plotProject.id}/plots/bulk`, {
+        plot_ranges: bulkRanges,
+        default_size: bulkSize,
+        facing: bulkFacing,
+        road_width_ft: Number(bulkRoadWidth),
+        price: Number(bulkPrice),
+      });
+      fetchProjectPlots(plotProject.id);
+      fetchProjects();
+    } catch (err) {
+      alert('Failed to create plots in bulk');
+    }
+  };
+
+  const createSinglePlot = async () => {
+    if (!plotProject) return;
+    try {
+      await api.post(`/projects/${plotProject.id}/plots`, {
+        plot_number: singlePlot.plot_number,
+        size: singlePlot.size,
+        facing: singlePlot.facing,
+        road_width_ft: Number(singlePlot.road_width_ft),
+        price: Number(singlePlot.price),
+        status: singlePlot.status,
+      });
+      setSinglePlot({ plot_number: '', size: '', facing: 'North', road_width_ft: '30', price: '0', status: 'Available' });
+      fetchProjectPlots(plotProject.id);
+      fetchProjects();
+    } catch (err) {
+      alert('Failed to create plot');
     }
   };
 
@@ -263,7 +336,15 @@ export default function Projects() {
                         </div>
                         <div className="space-y-1">
                           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Planned Units</p>
-                          <p className="text-lg font-black text-slate-900">{p.total_plots} Plots</p>
+                          <p className="text-lg font-black text-slate-900">{p.total_plots_count ?? p.total_plots} Plots</p>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Available</p>
+                          <p className="text-lg font-black text-emerald-600">{p.available_plots_count ?? 0}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Sold</p>
+                          <p className="text-lg font-black text-rose-600">{p.sold_plots_count ?? 0}</p>
                         </div>
                       </div>
 
@@ -281,7 +362,7 @@ export default function Projects() {
                       </div>
 
                       <div className="flex gap-4">
-                        <Button 
+                        <Button
                           variant="outline" 
                           className="flex-1 rounded-xl text-[10px] font-black uppercase tracking-widest border-slate-200"
                           onClick={() => window.location.href = `/properties?project=${p.id}`}
@@ -292,9 +373,10 @@ export default function Projects() {
                         <Button 
                           variant="ghost" 
                           className="flex-1 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-900"
+                          onClick={() => openPlotModal(p)}
                         >
                           <Layout size={14} className="mr-2" />
-                          Layout
+                          Manage Plots
                         </Button>
                       </div>
                     </div>
@@ -392,6 +474,23 @@ export default function Projects() {
                 onChange={(e) => setFormData({...formData, amenities: e.target.value})}
                 placeholder="Park, Security, Water..."
               />
+              <Input
+                label="Layout Map Link"
+                value={formData.layout_map}
+                onChange={(e) => setFormData({...formData, layout_map: e.target.value})}
+                placeholder="Google Drive or image URL"
+              />
+              <Input
+                label="Or Upload Layout Image"
+                type="file"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  const reader = new FileReader();
+                  reader.onload = () => setFormData({ ...formData, layout_map: String(reader.result || '') });
+                  reader.readAsDataURL(file);
+                }}
+              />
             </div>
 
             <div className="md:col-span-2 space-y-2">
@@ -405,6 +504,58 @@ export default function Projects() {
             </div>
           </div>
         </form>
+      </Modal>
+
+      <Modal
+        isOpen={isPlotModalOpen}
+        onClose={() => setIsPlotModalOpen(false)}
+        title={plotProject ? `Plot Management - ${plotProject.name}` : 'Plot Management'}
+        size="xl"
+        footer={<div className="w-full flex justify-end"><Button onClick={() => setIsPlotModalOpen(false)}>Close</Button></div>}
+      >
+        <div className="space-y-6">
+          <Card className="p-4 ring-1 ring-slate-200">
+            <p className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">Bulk Plot Creation</p>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <Input label="Plot Number Ranges" value={bulkRanges} onChange={(e) => setBulkRanges(e.target.value)} placeholder="1-10,15-20" />
+              <Input label="Default Size" value={bulkSize} onChange={(e) => setBulkSize(e.target.value)} />
+              <Input label="Facing" value={bulkFacing} onChange={(e) => setBulkFacing(e.target.value)} />
+              <Input label="Road Width (ft)" type="number" value={bulkRoadWidth} onChange={(e) => setBulkRoadWidth(e.target.value)} />
+              <Input label="Price" type="number" value={bulkPrice} onChange={(e) => setBulkPrice(e.target.value)} />
+            </div>
+            <div className="mt-3 flex justify-end">
+              <Button onClick={createBulkPlots}>Generate Plots</Button>
+            </div>
+          </Card>
+
+          <Card className="p-4 ring-1 ring-slate-200">
+            <p className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">Single Plot Entry</p>
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+              <Input label="Plot Number" value={singlePlot.plot_number} onChange={(e) => setSinglePlot({ ...singlePlot, plot_number: e.target.value })} />
+              <Input label="Size" value={singlePlot.size} onChange={(e) => setSinglePlot({ ...singlePlot, size: e.target.value })} />
+              <Input label="Facing" value={singlePlot.facing} onChange={(e) => setSinglePlot({ ...singlePlot, facing: e.target.value })} />
+              <Input label="Road Width" type="number" value={singlePlot.road_width_ft} onChange={(e) => setSinglePlot({ ...singlePlot, road_width_ft: e.target.value })} />
+              <Input label="Price" type="number" value={singlePlot.price} onChange={(e) => setSinglePlot({ ...singlePlot, price: e.target.value })} />
+              <Select label="Status" value={singlePlot.status} onChange={(e) => setSinglePlot({ ...singlePlot, status: e.target.value })} options={[{ value: 'Available', label: 'Available' }, { value: 'Sold', label: 'Sold' }]} />
+            </div>
+            <div className="mt-3 flex justify-end">
+              <Button onClick={createSinglePlot}>Add Plot</Button>
+            </div>
+          </Card>
+
+          <Card className="p-4 ring-1 ring-slate-200">
+            <p className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">Project Plots</p>
+            <div className="space-y-2 max-h-64 overflow-auto">
+              {plots.map((plot) => (
+                <div key={plot.id} className="border border-slate-200 rounded-xl px-3 py-2 flex items-center justify-between">
+                  <div className="text-sm text-slate-700">{plot.plot_number} • {plot.size || '-'} • {plot.facing || '-'} • {plot.road_width_ft || '-'}ft</div>
+                  <Badge variant={plot.status === 'Sold' ? 'error' : 'success'}>{plot.status}</Badge>
+                </div>
+              ))}
+              {plots.length === 0 ? <p className="text-sm text-slate-500">No plots created yet.</p> : null}
+            </div>
+          </Card>
+        </div>
       </Modal>
     </div>
   );

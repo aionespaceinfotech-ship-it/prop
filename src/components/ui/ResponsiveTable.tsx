@@ -15,6 +15,12 @@ interface ResponsiveTableProps<T> {
   emptyMessage?: string;
   isLoading?: boolean;
   rowClassName?: string;
+  tableWrapperClassName?: string;
+  tableClassName?: string;
+  mobileContainerClassName?: string;
+  desktopBreakpoint?: 'md' | 'lg';
+  headerCellClassName?: string;
+  bodyCellClassName?: string;
 }
 
 export function ResponsiveTable<T>({
@@ -25,6 +31,12 @@ export function ResponsiveTable<T>({
   emptyMessage = 'No data found',
   isLoading = false,
   rowClassName = '',
+  tableWrapperClassName = '',
+  tableClassName = '',
+  mobileContainerClassName = '',
+  desktopBreakpoint = 'md',
+  headerCellClassName = '',
+  bodyCellClassName = '',
 }: ResponsiveTableProps<T>) {
   if (isLoading) {
     return (
@@ -44,17 +56,24 @@ export function ResponsiveTable<T>({
     );
   }
 
+  const desktopViewClassName = desktopBreakpoint === 'lg'
+    ? 'hidden lg:block overflow-x-auto rounded-xl border border-slate-200'
+    : 'hidden md:block overflow-x-auto rounded-xl border border-slate-200';
+  const mobileViewClassName = desktopBreakpoint === 'lg'
+    ? 'lg:hidden space-y-4'
+    : 'md:hidden space-y-4';
+
   return (
     <div className="w-full">
       {/* Desktop Table View */}
-      <div className="hidden md:block overflow-x-auto rounded-xl border border-slate-200">
-        <table className="w-full text-left border-collapse">
+      <div className={`${desktopViewClassName} ${tableWrapperClassName}`}>
+        <table className={`w-full text-left border-collapse ${tableClassName}`}>
           <thead>
             <tr className="bg-slate-50 border-b border-slate-200">
               {columns.map((col, idx) => (
                 <th 
                   key={idx} 
-                  className={`px-5 py-3.5 text-[11px] font-bold text-slate-500 uppercase tracking-wider ${col.className || ''}`}
+                  className={`px-5 py-3.5 text-[11px] font-bold text-slate-500 uppercase tracking-wider ${headerCellClassName} ${col.className || ''}`}
                 >
                   {col.header}
                 </th>
@@ -73,7 +92,7 @@ export function ResponsiveTable<T>({
                 `}
               >
                 {columns.map((col, idx) => (
-                  <td key={idx} className={`px-5 py-4 text-sm text-slate-700 ${col.className || ''}`}>
+                  <td key={idx} className={`px-5 py-4 text-sm text-slate-700 ${bodyCellClassName} ${col.className || ''}`}>
                     {typeof col.accessor === 'function' 
                       ? col.accessor(item) 
                       : (item[col.accessor] as React.ReactNode)}
@@ -86,7 +105,7 @@ export function ResponsiveTable<T>({
       </div>
 
       {/* Mobile Card View */}
-      <div className="md:hidden space-y-4">
+      <div className={`${mobileViewClassName} ${mobileContainerClassName}`}>
         {data.map((item) => (
           <div 
             key={keyExtractor(item)}

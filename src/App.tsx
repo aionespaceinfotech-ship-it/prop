@@ -9,9 +9,11 @@ import Clients from './pages/Clients';
 import Visits from './pages/Visits';
 import Deals from './pages/Deals';
 import Reports from './pages/Reports';
-import Brokers from './pages/Brokers';
 import Projects from './pages/Projects';
 import PublicCatalog from './pages/PublicCatalog';
+import Settings from './pages/Settings';
+import Support from './pages/Support';
+import UserManagement from './pages/UserManagement';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuth();
@@ -75,9 +77,19 @@ export default function App() {
               <Layout><Reports /></Layout>
             </PrivateRoute>
           } />
-          <Route path="/brokers" element={
+          <Route path="/settings" element={
             <PrivateRoute>
-              <Layout><Brokers /></Layout>
+              <Layout><Settings /></Layout>
+            </PrivateRoute>
+          } />
+          <Route path="/support" element={
+            <PrivateRoute>
+              <Layout><Support /></Layout>
+            </PrivateRoute>
+          } />
+          <Route path="/users" element={
+            <PrivateRoute>
+              <Layout><UserManagement /></Layout>
             </PrivateRoute>
           } />
           <Route path="/catalog" element={<PublicCatalog />} />

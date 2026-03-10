@@ -4,7 +4,7 @@ interface User {
   id: number;
   name: string;
   email: string;
-  role: 'Admin' | 'Broker';
+  role: 'Super Admin' | 'Admin' | 'Sales';
   commission_pct: number;
 }
 
