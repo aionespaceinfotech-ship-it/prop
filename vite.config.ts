@@ -17,9 +17,13 @@ export default defineConfig(({mode}) => {
     },
     server: {
       allowedHosts: ['propnet.zeye.app'],
+      hmr: process.env.DISABLE_HMR !== 'true' ? {
+        protocol: 'wss',
+        host: 'propnet.zeye.app',
+        clientPort: 443,
+      } : false,
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
-      hmr: process.env.DISABLE_HMR !== 'true',
     },
   };
 });

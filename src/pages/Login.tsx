@@ -12,16 +12,19 @@ export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent, credentials?: { email: string, password: string }) => {
+    if (e) e.preventDefault();
     setError('');
     setLoading(true);
+
+    const loginEmail = credentials ? credentials.email : email;
+    const loginPassword = credentials ? credentials.password : password;
 
     try {
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email: loginEmail, password: loginPassword }),
       });
 
       const data = await response.json();
@@ -37,6 +40,12 @@ export default function Login() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDemoLogin = (demoEmail: string, demoPassword: string) => {
+    setEmail(demoEmail);
+    setPassword(demoPassword);
+    handleSubmit(undefined, { email: demoEmail, password: demoPassword });
   };
 
   return (
@@ -99,13 +108,37 @@ export default function Login() {
           </button>
         </form>
 
-        <div className="mt-8 pt-6 border-t border-slate-100 text-center">
-          <p className="text-sm text-slate-500">
-            Demo Credentials:<br />
-            Super Admin: superadmin@propcrm.com / admin123<br />
-            Admin: rahul@propcrm.com / admin123<br />
-            Sales: amit@propcrm.com / broker123<br />
-            Sales: neha@propcrm.com / broker123
+        <div className="mt-8 pt-6 border-t border-slate-100">
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4 text-center">One-Click Demo Login</p>
+          <div className="grid grid-cols-2 gap-3 mb-6">
+            <button
+              onClick={() => handleDemoLogin('superadmin@propcrm.com', 'admin123')}
+              className="px-3 py-2 text-[10px] font-medium text-slate-600 bg-slate-50 hover:bg-emerald-50 hover:text-emerald-700 rounded-lg border border-slate-200 hover:border-emerald-200 transition-all text-center"
+            >
+              Super Admin
+            </button>
+            <button
+              onClick={() => handleDemoLogin('rahul@propcrm.com', 'admin123')}
+              className="px-3 py-2 text-[10px] font-medium text-slate-600 bg-slate-50 hover:bg-emerald-50 hover:text-emerald-700 rounded-lg border border-slate-200 hover:border-emerald-200 transition-all text-center"
+            >
+              Admin (Rahul)
+            </button>
+            <button
+              onClick={() => handleDemoLogin('amit@propcrm.com', 'broker123')}
+              className="px-3 py-2 text-[10px] font-medium text-slate-600 bg-slate-50 hover:bg-emerald-50 hover:text-emerald-700 rounded-lg border border-slate-200 hover:border-emerald-200 transition-all text-center"
+            >
+              Sales (Amit)
+            </button>
+            <button
+              onClick={() => handleDemoLogin('neha@propcrm.com', 'broker123')}
+              className="px-3 py-2 text-[10px] font-medium text-slate-600 bg-slate-50 hover:bg-emerald-50 hover:text-emerald-700 rounded-lg border border-slate-200 hover:border-emerald-200 transition-all text-center"
+            >
+              Sales (Neha)
+            </button>
+          </div>
+
+          <p className="text-[10px] text-slate-400 text-center">
+            Credentials: superadmin@propcrm.com / admin123
           </p>
         </div>
       </motion.div>
