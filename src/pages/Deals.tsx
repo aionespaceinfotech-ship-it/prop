@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useApi } from '../hooks/useApi';
 import { 
   Plus, 
@@ -13,7 +13,10 @@ import {
   DollarSign,
   Briefcase,
   Search,
-  Filter
+  Filter,
+  FileText,
+  Target,
+  ArrowRight
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuth } from '../contexts/AuthContext';
@@ -23,11 +26,13 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Badge } from '../components/ui/Badge';
-import { Modal } from '../components/ui/Modal';
+import { AdaptiveDrawer } from '../components/ui/AdaptiveDrawer';
 import { ResponsiveTable } from '../components/ui/ResponsiveTable';
+import { DataPageLayout } from '../components/ui/DataPageLayout';
 import { formatCurrency, formatDate } from '../utils/formatters';
 import { cn } from '../utils/cn';
 import { motion } from 'motion/react';
+import { toast } from 'sonner';
 
 interface Deal {
   id: number;
@@ -125,242 +130,183 @@ export default function Deals() {
         commission_rate: parseFloat(formData.commission_rate)
       });
       setIsModalOpen(false);
+      toast.success('Deal recorded successfully');
       fetchData();
     } catch (err) {
-      alert('Error recording deal');
+      toast.error('Failed to record deal');
     }
   };
 
-  const filteredDeals = deals.filter(d => 
-    d.property_title.toLowerCase().includes(search.toLowerCase()) || 
-    d.lead_title.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredDeals = useMemo(() => {
+    return deals.filter(d => 
+      d.property_title.toLowerCase().includes(search.toLowerCase()) || 
+      d.lead_title.toLowerCase().includes(search.toLowerCase()) ||
+      d.broker_name.toLowerCase().includes(search.toLowerCase())
+    );
+  }, [deals, search]);
 
   const totalRevenue = deals.reduce((sum, d) => sum + d.final_value, 0);
   const totalCommission = deals.reduce((sum, d) => sum + d.commission_amount, 0);
 
+  const stats = (
+    <>
+      <Card className="p-6 bg-white ring-1 ring-slate-200 border-none shadow-sm relative overflow-hidden group">
+        <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
+          <Handshake size={60} />
+        </div>
+        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 leading-none">Successful Closures</p>
+        <div className="flex items-baseline gap-2">
+          <h3 className="text-3xl font-black text-slate-900">{deals.length}</h3>
+          <span className="text-[10px] font-bold text-emerald-500 bg-emerald-50 px-1.5 py-0.5 rounded">+4</span>
+        </div>
+      </Card>
+      
+      <Card className="p-6 bg-white ring-1 ring-slate-200 border-none shadow-sm relative overflow-hidden group">
+        <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
+          <IndianRupee size={60} />
+        </div>
+        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 leading-none">Gross Transaction Value</p>
+        <h3 className="text-2xl font-black text-slate-900 truncate">{formatCurrency(totalRevenue)}</h3>
+      </Card>
+
+      <Card className="p-6 bg-emerald-600 border-none shadow-lg shadow-emerald-100 relative overflow-hidden group">
+        <div className="absolute right-0 top-0 p-4 opacity-20 group-hover:scale-110 transition-transform text-white">
+          <DollarSign size={60} />
+        </div>
+        <p className="text-[10px] font-black text-emerald-100 uppercase tracking-[0.2em] mb-2 leading-none">Net Revenue (Comm.)</p>
+        <h3 className="text-2xl font-black text-white truncate">{formatCurrency(totalCommission)}</h3>
+      </Card>
+    </>
+  );
+
   const columns = [
     {
-      header: 'Transaction Details',
+      header: 'Listing & Prospect',
       accessor: (d: Deal) => (
-        <div className="py-2">
-          <div className="flex items-center gap-2 mb-1">
-            <p className="font-bold text-slate-900">{d.property_title}</p>
-            <Badge className={cn(
-              "border-none text-[9px] font-black uppercase tracking-widest px-2 py-0.5",
-              d.status === 'Closed' ? "bg-emerald-500 text-white" : "bg-amber-500 text-white"
-            )}>
-              {d.status}
-            </Badge>
-          </div>
-          <div className="flex items-center text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-            <User size={10} className="mr-1" />
+        <div className="py-1 min-w-0">
+          <p className="font-black text-slate-900 leading-tight truncate" title={d.property_title}>{d.property_title}</p>
+          <div className="flex items-center text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-1.5 truncate">
+            <User size={10} className="mr-1.5 text-blue-500 shrink-0" />
             {d.lead_title}
           </div>
         </div>
-      )
+      ),
+      className: 'md:min-w-[220px] lg:max-w-[300px]'
     },
     {
-      header: 'Closing Date',
+      header: 'Closing',
       accessor: (d: Deal) => (
-        <div className="py-2">
-          <div className="flex items-center text-sm text-slate-600 font-bold">
-            <Calendar size={14} className="mr-2 text-slate-300" />
-            {formatDate(d.closing_date)}
-          </div>
+        <div className="flex items-center text-[10px] font-bold text-slate-600">
+          <Calendar size={12} className="mr-2 text-slate-300 shrink-0" />
+          {formatDate(d.closing_date)}
         </div>
-      )
+      ),
+      className: 'md:min-w-[120px]',
+      hideOnMobile: true
     },
     {
-      header: 'Value',
+      header: 'Market Value',
       accessor: (d: Deal) => (
-        <div className="py-2">
-          <div className="text-sm font-black text-slate-900">
-            {formatCurrency(d.final_value)}
-          </div>
-          <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-            Final Sale Price
-          </div>
+        <div className="min-w-0">
+          <p className="text-xs lg:text-sm font-black text-slate-900 tabular-nums truncate">{formatCurrency(d.final_value)}</p>
+          <p className="text-[8px] font-black text-slate-300 uppercase tracking-tighter mt-0.5">Contract Price</p>
         </div>
-      )
+      ),
+      className: 'md:min-w-[140px]'
     },
     {
-      header: 'Earnings',
+      header: 'Commission',
       accessor: (d: Deal) => (
-        <div className="py-2">
-          <div className="text-sm font-black text-emerald-600">
-            {formatCurrency(d.commission_amount)}
-          </div>
-          <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-            {d.commission_rate}% Commission
-          </div>
+        <div className="min-w-0">
+          <p className="text-xs lg:text-sm font-black text-emerald-600 tabular-nums truncate">{formatCurrency(d.commission_amount)}</p>
+          <p className="text-[8px] font-black text-emerald-400/60 uppercase tracking-tighter mt-0.5">{d.commission_rate}% Yield</p>
         </div>
-      )
+      ),
+      className: 'md:min-w-[140px]'
     },
     {
-      header: 'Managed By',
+      header: 'Status',
       accessor: (d: Deal) => (
-        <div className="py-2">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-500 border border-slate-200">
-              {d.broker_name.charAt(0)}
-            </div>
-            <span className="text-xs font-bold text-slate-600">{d.broker_name}</span>
-          </div>
-        </div>
-      )
+        <Badge className={cn(
+          "border-none text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-lg shadow-sm",
+          d.status === 'Closed' ? "bg-emerald-500 text-white" : "bg-amber-500 text-white"
+        )}>
+          {d.status}
+        </Badge>
+      ),
+      className: 'md:min-w-[90px]'
     }
   ];
 
   const estimatedCommission = ((parseFloat(formData.final_value) || 0) * (parseFloat(formData.commission_rate) || 0) / 100);
 
   return (
-    <div className="p-6 lg:p-10 space-y-12 max-w-[1400px] mx-auto">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <PageHeader 
-          title="Deal Ledger" 
-          subtitle="A comprehensive record of your successful property transactions."
-        />
-        <Button onClick={handleOpenModal} className="rounded-xl shadow-lg shadow-emerald-200">
-          <Plus size={18} className="mr-2" />
-          Record Deal
-        </Button>
-      </div>
-
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        <Card className="p-8 border-none shadow-sm ring-1 ring-slate-200/50 bg-white relative overflow-hidden group">
-          <div className="relative z-10">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Total Closed Deals</p>
-            <div className="flex items-end gap-3">
-              <h3 className="text-5xl font-black text-slate-900">{deals.length}</h3>
-              <div className="mb-2 flex items-center text-emerald-600 font-bold text-xs">
-                <ArrowUpRight size={14} className="mr-1" />
-                +12%
-              </div>
-            </div>
-          </div>
-          <div className="absolute -right-4 -bottom-4 opacity-[0.03] group-hover:opacity-[0.05] transition-opacity">
-            <Handshake size={160} />
-          </div>
-        </Card>
-
-        <Card className="p-8 border-none shadow-sm ring-1 ring-slate-200/50 bg-white relative overflow-hidden group">
-          <div className="relative z-10">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Total Revenue</p>
-            <div className="flex items-end gap-3">
-              <h3 className="text-4xl font-black text-slate-900">{formatCurrency(totalRevenue)}</h3>
-            </div>
-          </div>
-          <div className="absolute -right-4 -bottom-4 opacity-[0.03] group-hover:opacity-[0.05] transition-opacity">
-            <TrendingUp size={160} />
-          </div>
-        </Card>
-
-        <Card className="p-8 border-none shadow-sm ring-1 ring-slate-200/50 bg-emerald-600 relative overflow-hidden group">
-          <div className="relative z-10">
-            <p className="text-[10px] font-bold text-emerald-100 uppercase tracking-[0.2em] mb-4">Net Commission</p>
-            <div className="flex items-end gap-3">
-              <h3 className="text-4xl font-black text-white">{formatCurrency(totalCommission)}</h3>
-            </div>
-          </div>
-          <div className="absolute -right-4 -bottom-4 opacity-[0.1] group-hover:opacity-[0.15] transition-opacity">
-            <DollarSign size={160} className="text-white" />
-          </div>
-        </Card>
-      </div>
-
-      {/* Search & Filters */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div className="relative w-full md:w-96">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-          <input 
-            type="text" 
-            placeholder="Search deals by property or lead..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm focus:outline-none focus:ring-4 focus:ring-emerald-500/5 focus:border-emerald-500 transition-all shadow-sm"
+    <DataPageLayout
+      title="Deal Registry"
+      subtitle="The ultimate ledger of successful transactions and revenue milestones."
+      primaryAction={{
+        label: "Record Transaction",
+        onClick: handleOpenModal,
+        icon: <Plus size={18} className="mr-2" />
+      }}
+      search={{
+        value: search,
+        onChange: setSearch,
+        placeholder: "Search deals by property, lead or agent..."
+      }}
+      stats={stats}
+    >
+      {loading ? (
+        <div className="flex flex-col items-center justify-center py-32 gap-4">
+          <div className="w-12 h-12 border-4 border-emerald-50 border-t-emerald-600 rounded-full animate-spin" />
+          <p className="text-sm font-bold text-slate-400 uppercase tracking-widest animate-pulse">Calculating Ledger...</p>
+        </div>
+      ) : (
+        <Card className="p-0 border-none shadow-sm ring-1 ring-slate-200/50 overflow-hidden bg-white rounded-[2.5rem]">
+          <ResponsiveTable 
+            columns={columns}
+            data={filteredDeals}
+            keyExtractor={(d) => d.id}
+            isLoading={loading}
+            emptyMessage="No transactions recognized. Close your first deal to initialize the ledger."
+            rowClassName="hover:bg-slate-50/80 transition-all duration-300"
+            headerCellClassName="bg-slate-50/50"
           />
-        </div>
-        <div className="flex items-center gap-3">
-          <Button variant="outline" className="rounded-xl border-slate-200">
-            <Filter size={18} className="mr-2" />
-            Filter
-          </Button>
-          <Button variant="outline" className="rounded-xl border-slate-200">
-            Export CSV
-          </Button>
-        </div>
-      </div>
-
-      {/* Deals Table */}
-      <Card className="p-0 border-none shadow-sm ring-1 ring-slate-200/50 overflow-hidden bg-white">
-        <ResponsiveTable 
-          columns={columns}
-          data={filteredDeals}
-          keyExtractor={(d) => d.id}
-          isLoading={loading}
-          emptyMessage="No deals recorded yet. Close some deals to see them here!"
-          rowClassName="group hover:bg-slate-50/50 transition-colors border-b border-slate-100 last:border-0"
-        />
-      </Card>
+        </Card>
+      )}
 
       {/* Record Deal Modal */}
-      <Modal
+      <AdaptiveDrawer
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title="Record Transaction"
+        title="Initialize Transaction"
         size="lg"
         footer={
           <div className="flex items-center justify-between w-full">
-            <Button variant="ghost" onClick={() => setIsModalOpen(false)} className="text-slate-400 font-bold uppercase tracking-widest text-xs">Cancel</Button>
-            <Button onClick={handleSubmit} className="rounded-xl shadow-lg shadow-emerald-200 px-8">Confirm Deal</Button>
+            <Button variant="ghost" onClick={() => setIsModalOpen(false)} className="text-slate-400 font-black uppercase tracking-widest text-[10px]">Discard</Button>
+            <Button onClick={handleSubmit} className="rounded-2xl shadow-xl shadow-emerald-200 px-8">Confirm Closure</Button>
           </div>
         }
       >
         <form onSubmit={handleSubmit} className="space-y-10 py-4">
-          <div className="flex justify-end">
-            <button 
-              type="button"
-              onClick={() => {
-                if (leads.length > 0 && properties.length > 0) {
-                  setFormData({
-                    ...formData,
-                    lead_id: leads[0].id.toString(),
-                    property_id: properties[0].id.toString(),
-                    final_value: '12000000',
-                    commission_rate: user?.commission_pct?.toString() || '2',
-                    closing_date: format(new Date(), 'yyyy-MM-dd'),
-                    status: 'Closed'
-                  });
-                } else {
-                  alert('Please add at least one lead and one property first.');
-                }
-              }}
-              className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest hover:underline"
-            >
-              Auto-fill sample data
-            </button>
-          </div>
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <Select 
-              label="Select Lead"
+              label="Associated Prospect"
               required
               value={formData.lead_id}
               onChange={(e) => setFormData({...formData, lead_id: e.target.value})}
               options={[
-                { value: '', label: 'Choose a lead...' },
+                { value: '', label: 'Select active lead...' },
                 ...leads.map(l => ({ value: l.id, label: l.title }))
               ]}
             />
             <Select 
-              label="Select Property"
+              label="Target Listing"
               required
               value={formData.property_id}
               onChange={(e) => setFormData({...formData, property_id: e.target.value})}
               options={[
-                { value: '', label: 'Choose a property...' },
+                { value: '', label: 'Select property...' },
                 ...properties.map(p => ({ value: p.id, label: p.title }))
               ]}
             />
@@ -368,7 +314,7 @@ export default function Deals() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
             <Input 
-              label="Final Sale Price (₹)"
+              label="Finalized Value (₹)"
               required
               type="number"
               value={formData.final_value}
@@ -376,44 +322,50 @@ export default function Deals() {
               placeholder="e.g. 12000000"
             />
             <Input 
-              label="Commission Percentage (%)"
+              label="Brokerage Yield (%)"
               required
               type="number"
               step="0.1"
               value={formData.commission_rate}
               onChange={(e) => setFormData({...formData, commission_rate: e.target.value})}
-              placeholder="e.g. 2"
+              placeholder="e.g. 2.0"
             />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
             <Input 
-              label="Closing Date"
+              label="Execution Date"
               required
               type="date"
               value={formData.closing_date}
               onChange={(e) => setFormData({...formData, closing_date: e.target.value})}
             />
             <Select 
-              label="Deal Status"
+              label="Current Maturity"
               value={formData.status}
               onChange={(e) => setFormData({...formData, status: e.target.value as any})}
               options={[
-                { value: 'Closed', label: 'Closed' },
-                { value: 'Negotiation', label: 'Negotiation' },
+                { value: 'Closed', label: 'Legally Closed' },
+                { value: 'Negotiation', label: 'Final Negotiation' },
               ]}
             />
           </div>
 
-          <div className="p-8 bg-emerald-50 rounded-[2rem] border border-emerald-100 flex flex-col items-center text-center">
-            <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest mb-2">Estimated Earnings</p>
-            <h4 className="text-4xl font-black text-emerald-700">
+          <div className="p-10 bg-slate-900 rounded-[2.5rem] border border-slate-800 flex flex-col items-center text-center relative overflow-hidden group">
+            <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:rotate-12 transition-transform duration-700">
+              <Target size={120} className="text-white" />
+            </div>
+            <p className="text-[10px] font-black text-emerald-400 uppercase tracking-[0.2em] mb-3 relative z-10">Calculated Yield</p>
+            <h4 className="text-5xl font-black text-white tracking-tighter relative z-10 tabular-nums">
               {formatCurrency(estimatedCommission)}
             </h4>
-            <p className="text-[10px] text-emerald-600/60 mt-2 font-medium italic">Calculated based on {formData.commission_rate || '0'}% commission rate</p>
+            <div className="flex items-center gap-2 mt-4 bg-white/5 px-4 py-1.5 rounded-full border border-white/10 relative z-10">
+              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic">Net commission at {formData.commission_rate || '0'}% yield</span>
+              <ArrowRight size={10} className="text-emerald-500" />
+            </div>
           </div>
         </form>
-      </Modal>
-    </div>
+      </AdaptiveDrawer>
+    </DataPageLayout>
   );
 }

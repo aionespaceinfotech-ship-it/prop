@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = 'http://localhost:3000/api';
+const API_URL = 'http://localhost:30000/api';
 
 async function runTests() {
   console.log('🚀 Starting API Tests...');
@@ -22,7 +22,7 @@ async function runTests() {
     try {
       await axios.post(`${API_URL}/properties`, {
         title: 'S', // Too short
-        type: 'Apartment',
+        type: 'Flat',
         location: 'Test',
         price: -100, // Negative price
         area: 100
@@ -40,7 +40,7 @@ async function runTests() {
     console.log('\n3. Testing Valid Property Creation...');
     const propRes = await axios.post(`${API_URL}/properties`, {
       title: 'API Test Property',
-      type: 'Apartment',
+      type: 'Flat',
       location: 'Test Location',
       price: 5000000,
       area: 1200,
@@ -52,20 +52,20 @@ async function runTests() {
     console.log('\n4. Testing Authorization (Broker accessing Admin route)...');
     // First login as broker
     const brokerLogin = await axios.post(`${API_URL}/auth/login`, {
-      email: 'john@propcrm.com',
+      email: 'amit@propcrm.com',
       password: 'broker123'
     });
     const brokerToken = brokerLogin.data.token;
     const brokerHeader = { headers: { Authorization: `Bearer ${brokerToken}` } };
 
     try {
-      await axios.get(`${API_URL}/brokers`, brokerHeader);
+      await axios.get(`${API_URL}/agents`, brokerHeader);
       console.log('❌ Authorization failed to block broker from admin route');
     } catch (err: any) {
       if (err.response?.status === 403) {
         console.log('✅ Authorization correctly blocked broker');
       } else {
-        console.log('❌ Unexpected error:', err.message);
+        console.log('❌ Unexpected error:', err.response?.status, err.message);
       }
     }
 

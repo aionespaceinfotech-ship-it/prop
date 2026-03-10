@@ -1,5 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { usePermissions } from '../hooks/usePermissions';
 import { 
   LayoutDashboard, 
   Home, 
@@ -27,11 +28,15 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export default function Sidebar() {
-  const { user, logout } = useAuth();
+interface SidebarProps {
+  isOpen: boolean;
+  setIsOpen: (open: boolean) => void;
+}
+
+export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
+  const { logout } = useAuth();
+  const { userName, currentRole, isManager } = usePermissions();
   const navigate = useNavigate();
-  const [isOpen, setIsOpen] = useState(false);
-  const isManager = user?.role === 'Admin' || user?.role === 'Super Admin';
 
   const navItems = [
     { name: 'Dashboard', path: '/', icon: LayoutDashboard },
@@ -52,15 +57,6 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* Mobile Toggle */}
-      <motion.button 
-        whileTap={{ scale: 0.9 }}
-        onClick={() => setIsOpen(!isOpen)}
-        className="lg:hidden fixed top-4 right-4 z-50 p-3 bg-white rounded-full shadow-lg border border-slate-200 text-slate-600"
-      >
-        {isOpen ? <X size={20} /> : <Menu size={20} />}
-      </motion.button>
-
       {/* Sidebar */}
       <aside className={cn(
         "fixed inset-y-0 left-0 z-40 w-72 bg-white border-r border-slate-200 transform transition-transform duration-500 ease-in-out lg:translate-x-0",
@@ -154,11 +150,11 @@ export default function Sidebar() {
               
               <div className="flex items-center gap-4 mb-6 relative z-10">
                 <div className="w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center text-slate-900 font-black text-lg ring-1 ring-slate-200">
-                  {user?.name?.charAt(0)}
+                  {userName?.charAt(0)}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-black text-slate-900 truncate">{user?.name}</p>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest truncate">{user?.role}</p>
+                  <p className="text-sm font-black text-slate-900 truncate">{userName}</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest truncate">{currentRole}</p>
                 </div>
               </div>
               

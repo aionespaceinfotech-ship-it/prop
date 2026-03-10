@@ -1,11 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card } from '../components/ui/Card';
-import { PageHeader } from '../components/ui/PageHeader';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { Select } from '../components/ui/Select';
+import { ConfirmModal } from '../components/ui/ConfirmModal';
+import { DataPageLayout } from '../components/ui/DataPageLayout';
+import { ResponsiveTable } from '../components/ui/ResponsiveTable';
+import { Badge } from '../components/ui/Badge';
 import { useApi } from '../hooks/useApi';
-import { useAuth } from '../contexts/AuthContext';
+import { usePermissions } from '../hooks/usePermissions';
+import { UserPlus, UserCog, UserCheck, UserMinus } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface SalesUser {
   id: number;
@@ -19,20 +24,32 @@ interface SalesUser {
 
 export default function UserManagement() {
   const api = useApi();
-  const { user } = useAuth();
+  const { canManageUsers } = usePermissions();
+  
   const [salesUsers, setSalesUsers] = useState<SalesUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  
+  // Form States
   const [newSales, setNewSales] = useState({ name: '', email: '', phone: '', password: '', role: 'Sales' });
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState({ name: '', email: '', phone: '', password: '' });
-
-  const canManageUsers = user?.role === 'Admin' || user?.role === 'Super Admin';
+  
+  // Confirmation States
+  const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; user: SalesUser | null }>({
+    isOpen: false,
+    user: null
+  });
 
   const loadSalesUsers = async () => {
+    setLoading(true);
     try {
       const rows = await api.get('/users/sales');
       setSalesUsers(rows);
     } catch (err) {
       console.error(err);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -40,23 +57,27 @@ export default function UserManagement() {
     if (canManageUsers) loadSalesUsers();
   }, [canManageUsers]);
 
+  const filteredUsers = useMemo(() => {
+    return salesUsers.filter(u => 
+      u.name.toLowerCase().includes(search.toLowerCase()) || 
+      u.email.toLowerCase().includes(search.toLowerCase()) ||
+      (u.phone || '').includes(search)
+    );
+  }, [salesUsers, search]);
+
   const createSalesUser = async () => {
     if (!newSales.name || !newSales.email || !newSales.phone || !newSales.password) {
-      alert('Name, email, phone and password are required');
+      toast.error('All fields are required');
       return;
     }
     try {
       await api.post('/users/sales', newSales);
       setNewSales({ name: '', email: '', phone: '', password: '', role: 'Sales' });
+      toast.success('User account created');
       loadSalesUsers();
     } catch {
-      alert('Failed to create sales user');
+      toast.error('Failed to create sales user');
     }
-  };
-
-  const startEdit = (u: SalesUser) => {
-    setEditingId(u.id);
-    setEditForm({ name: u.name, email: u.email, phone: u.phone || '', password: '' });
   };
 
   const saveEdit = async () => {
@@ -65,91 +86,177 @@ export default function UserManagement() {
       await api.put(`/users/sales/${editingId}`, editForm);
       setEditingId(null);
       setEditForm({ name: '', email: '', phone: '', password: '' });
+      toast.success('User profile updated');
       loadSalesUsers();
     } catch {
-      alert('Failed to update user');
+      toast.error('Failed to update user');
     }
   };
 
-  const toggleActive = async (u: SalesUser) => {
+  const handleToggleActive = async () => {
+    const u = confirmModal.user;
+    if (!u) return;
+    
     try {
       await api.put(`/users/sales/${u.id}/active`, { active: u.active ? 0 : 1 });
+      setConfirmModal({ isOpen: false, user: null });
+      toast.success(`User ${u.active ? 'deactivated' : 'activated'}`);
       loadSalesUsers();
     } catch {
-      alert('Failed to update status');
+      toast.error('Failed to update status');
     }
   };
 
   if (!canManageUsers) {
     return (
-      <div className="p-6 lg:p-10">
-        <Card className="p-6 border-none shadow-sm ring-1 ring-slate-200">
-          <p className="text-slate-600">You do not have permission to access user management.</p>
+      <div className="p-8">
+        <Card className="p-12 text-center border-none shadow-sm ring-1 ring-slate-200">
+          <UserMinus className="mx-auto text-slate-300 mb-4" size={48} />
+          <h3 className="text-lg font-bold text-slate-900">Access Denied</h3>
+          <p className="text-slate-500 mt-1">You do not have permission to access user management.</p>
         </Card>
       </div>
     );
   }
 
-  return (
-    <div className="p-4 sm:p-6 lg:p-10 space-y-6 max-w-6xl mx-auto">
-      <PageHeader title="User Management" subtitle="Create and manage Sales users." />
-
-      <Card className="p-4 sm:p-6 space-y-4 border-none shadow-sm ring-1 ring-slate-200/70 rounded-2xl">
-        <h3 className="text-sm font-bold text-slate-900 tracking-wide">Create Sales User</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          <Input label="Name" value={newSales.name} onChange={(e) => setNewSales({ ...newSales, name: e.target.value })} />
-          <Input label="Email" value={newSales.email} onChange={(e) => setNewSales({ ...newSales, email: e.target.value })} />
-          <Input label="Phone Number" value={newSales.phone} onChange={(e) => setNewSales({ ...newSales, phone: e.target.value })} />
-          <Input label="Password" type="password" value={newSales.password} onChange={(e) => setNewSales({ ...newSales, password: e.target.value })} />
-          <Select label="Role" value={newSales.role} onChange={(e) => setNewSales({ ...newSales, role: e.target.value })} options={[{ value: 'Sales', label: 'Sales' }]} />
-        </div>
-        <div className="flex justify-end pt-1">
-          <Button onClick={createSalesUser}>Create User</Button>
-        </div>
-      </Card>
-
-      <Card className="p-4 sm:p-6 space-y-3 border-none shadow-sm ring-1 ring-slate-200/70 rounded-2xl">
-        <h3 className="text-sm font-bold text-slate-900 tracking-wide">Sales Users</h3>
-        <div className="hidden md:grid grid-cols-4 px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">
-          <span>Name</span>
-          <span>Email</span>
-          <span>Phone</span>
-          <span>Status</span>
-        </div>
-        {salesUsers.map((u) => (
-          <div key={u.id} className="border border-slate-200 rounded-xl px-3 py-3 text-sm space-y-2 bg-white">
-            {editingId === u.id ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                <Input label="Name" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} />
-                <Input label="Email" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} />
-                <Input label="Phone" value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} />
-                <Input label="New Password" type="password" value={editForm.password} onChange={(e) => setEditForm({ ...editForm, password: e.target.value })} />
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-2 items-start md:items-center">
-                <div className="font-medium text-slate-900">{u.name}</div>
-                <div className="text-slate-600 break-all">{u.email}</div>
-                <div className="text-slate-600">{u.phone || '-'}</div>
-                <div className={u.active ? 'text-emerald-600 font-semibold' : 'text-rose-600 font-semibold'}>{u.active ? 'Active' : 'Inactive'}</div>
-              </div>
-            )}
-            <div className="flex flex-wrap justify-end gap-2 pt-1">
-              {editingId === u.id ? (
-                <>
-                  <Button variant="ghost" onClick={() => setEditingId(null)}>Cancel</Button>
-                  <Button onClick={saveEdit}>Save</Button>
-                </>
-              ) : (
-                <>
-                  <Button variant="outline" onClick={() => startEdit(u)}>Edit</Button>
-                  <Button variant="outline" onClick={() => toggleActive(u)}>{u.active ? 'Deactivate' : 'Activate'}</Button>
-                </>
-              )}
-            </div>
+  const columns = [
+    {
+      header: 'User Info',
+      accessor: (u: SalesUser) => (
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-700 font-bold text-xs uppercase tracking-tighter">
+            {u.name.charAt(0)}
           </div>
-        ))}
-        {salesUsers.length === 0 ? <p className="text-sm text-slate-500">No sales users found.</p> : null}
-      </Card>
-    </div>
+          <div>
+            <p className="font-bold text-slate-900 leading-none">{u.name}</p>
+            <p className="text-[10px] text-slate-500 mt-1">{u.email}</p>
+          </div>
+        </div>
+      )
+    },
+    {
+      header: 'Phone',
+      accessor: (u: SalesUser) => <span className="text-slate-600 tabular-nums">{u.phone || '-'}</span>
+    },
+    {
+      header: 'Status',
+      accessor: (u: SalesUser) => (
+        <Badge variant={u.active ? 'success' : 'neutral'}>
+          {u.active ? 'Active' : 'Inactive'}
+        </Badge>
+      )
+    },
+    {
+      header: 'Actions',
+      accessor: (u: SalesUser) => (
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => {
+              setEditingId(u.id);
+              setEditForm({ name: u.name, email: u.email, phone: u.phone || '', password: '' });
+            }}
+          >
+            Edit
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className={u.active ? 'text-rose-600 hover:text-rose-700' : 'text-emerald-600 hover:text-emerald-700'}
+            onClick={() => setConfirmModal({ isOpen: true, user: u })}
+          >
+            {u.active ? 'Deactivate' : 'Activate'}
+          </Button>
+        </div>
+      )
+    }
+  ];
+
+  return (
+    <DataPageLayout
+      title="User Management"
+      subtitle="Create and manage your sales team and administrative users."
+      search={{
+        value: search,
+        onChange: setSearch,
+        placeholder: "Search users by name, email or phone..."
+      }}
+    >
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Create User Form */}
+        <div className="lg:col-span-1">
+          <Card title="Add New User" subtitle="Enter credentials for the new team member." className="border-none shadow-sm ring-1 ring-slate-200 sticky top-8">
+            <div className="space-y-4">
+              <Input label="Full Name" value={newSales.name} onChange={(e) => setNewSales({ ...newSales, name: e.target.value })} placeholder="John Doe" />
+              <Input label="Email Address" type="email" value={newSales.email} onChange={(e) => setNewSales({ ...newSales, email: e.target.value })} placeholder="john@propcrm.com" />
+              <Input label="Phone Number" value={newSales.phone} onChange={(e) => setNewSales({ ...newSales, phone: e.target.value })} placeholder="+91 00000 00000" />
+              <Input label="Password" type="password" value={newSales.password} onChange={(e) => setNewSales({ ...newSales, password: e.target.value })} placeholder="••••••••" />
+              <Select 
+                label="System Role" 
+                value={newSales.role} 
+                onChange={(e) => setNewSales({ ...newSales, role: e.target.value })} 
+                options={[
+                  { value: 'Sales', label: 'Sales Executive' },
+                  { value: 'Admin', label: 'Branch Admin' }
+                ]} 
+              />
+              <Button onClick={createSalesUser} className="w-full mt-4">
+                <UserPlus size={18} className="mr-2" />
+                Create User Account
+              </Button>
+            </div>
+          </Card>
+        </div>
+
+        {/* User List */}
+        <div className="lg:col-span-2">
+          <Card className="p-0 border-none shadow-sm ring-1 ring-slate-200 overflow-hidden">
+            <ResponsiveTable
+              columns={columns}
+              data={filteredUsers}
+              keyExtractor={(u) => u.id}
+              isLoading={loading}
+              emptyMessage="No users found matching your search."
+              headerCellClassName="bg-slate-50/50"
+            />
+          </Card>
+        </div>
+      </div>
+
+      {/* Edit Modal */}
+      {editingId && (
+        <ConfirmModal
+          isOpen={!!editingId}
+          onClose={() => setEditingId(null)}
+          onConfirm={saveEdit}
+          title="Edit User Profile"
+          message={`Are you sure you want to update the profile for ${editForm.name}?`}
+          confirmText="Save Changes"
+          variant="info"
+        >
+          <div className="grid grid-cols-1 gap-4 mt-4 text-left">
+            <Input label="Full Name" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} />
+            <Input label="Email Address" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} />
+            <Input label="Phone Number" value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} />
+            <Input label="New Password (Optional)" type="password" value={editForm.password} onChange={(e) => setEditForm({ ...editForm, password: e.target.value })} placeholder="Leave blank to keep current" />
+          </div>
+        </ConfirmModal>
+      )}
+
+      {/* Toggle Active Confirmation */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ isOpen: false, user: null })}
+        onConfirm={handleToggleActive}
+        title={confirmModal.user?.active ? 'Deactivate User' : 'Activate User'}
+        message={confirmModal.user?.active 
+          ? `Are you sure you want to deactivate ${confirmModal.user?.name}? They will no longer be able to sign in to the system.`
+          : `Are you sure you want to reactivate ${confirmModal.user?.name}? They will regain access to the system.`
+        }
+        confirmText={confirmModal.user?.active ? 'Deactivate' : 'Activate'}
+        variant={confirmModal.user?.active ? 'danger' : 'info'}
+      />
+    </DataPageLayout>
   );
 }
